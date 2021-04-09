@@ -95,19 +95,47 @@ def shat_lower_tail(s, n, m, delta, eta, maxiter):
         shat = 0
     return shat
 
-# Return required fdp needed to achieve an fdr of alpha
-def required_fdp(n, m, alpha, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, alpha, delta, maxiter)
+# General upper and lower bounds
+def nu_plus(n, m, nu, delta, maxiter):
+    eta_star = get_eta_star_upper(n, m, nu, delta, maxiter)
     t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
-    def _condition(alpha_plus):
-        return alpha - (alpha_plus + t * np.sqrt(alpha_plus + eta_star))
+    def _condition(nu_plus):
+        return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
     try:
-        alpha_plus = brentq(_condition,0,1,maxiter=maxiter)
+        nu_plus = brentq(_condition,0,1,maxiter=maxiter)
     except:
         print("Warning: setting alpha_plus to 0 due to failed search")
-        alpha_plus = 0
-    return alpha_plus 
+        nu_plus = 0
+    return nu_plus 
 
+def r_minus(n, m, r, delta, maxiter):
+    eta_star = get_eta_star_upper(n, m, r, delta, maxiter)
+    t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter)
+    r_minus = r - t2*np.sqrt(r+eta_star)
+    return r_minus 
+
+# Return required fdp needed to achieve an fdr of alpha
+def required_fdp(n, m, alpha, delta, maxiter):
+    return nu_plus(n, m, alpha, delta, maxiter)
+#    eta_star = get_eta_star_upper(n, m, alpha, delta, maxiter)
+#    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
+#    def _condition(alpha_plus):
+#        return alpha - (alpha_plus + t * np.sqrt(alpha_plus + eta_star))
+#    try:
+#        alpha_plus = brentq(_condition,0,1,maxiter=maxiter)
+#    except:
+#        print("Warning: setting alpha_plus to 0 due to failed search")
+#        alpha_plus = 0
+#    return alpha_plus 
+
+def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
+    nu_plus = nu_plus(n, m, 1-accuracy, delta, maxiter)
+    r_minus = r_minus(n, m, frac_abstention, delta, maxiter)
+    if nu_plus <= 0 and r_minus <= 0:
+        return 0
+    if nu_plus > 0 and r_minus <= 0:
+        return np.Inf
+    return nu_plus/r_minus
 
 # Get optimal eta for upper tail
 def get_eta_star_upper(n, m, alpha, delta, maxiter):
