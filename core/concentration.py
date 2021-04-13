@@ -97,21 +97,21 @@ def shat_lower_tail(s, n, m, delta, eta, maxiter):
 
 # General upper and lower bounds
 def nu_plus(n, m, nu, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, nu, delta, maxiter)
+    eta_star = get_eta_star_upper(n, m, nu, delta, 20)
     t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
     def _condition(nu_plus):
         return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
     try:
         nu_plus = brentq(_condition,0,1,maxiter=maxiter)
     except:
-        print("Warning: setting alpha_plus to 0 due to failed search")
-        nu_plus = 0
+        print("Warning: setting nu_plus to 1 due to failed search")
+        nu_plus = 1
     return nu_plus 
 
 def r_minus(n, m, r, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, r, delta, maxiter)
+    eta_star = get_eta_star_upper(n, m, r, delta, 20)
     t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter)
-    r_minus = r - t2*np.sqrt(r+eta_star)
+    r_minus = r - t2*np.sqrt(max(r+eta_star, 0))
     return r_minus 
 
 # Return required fdp needed to achieve an fdr of alpha
@@ -129,32 +129,39 @@ def required_fdp(n, m, alpha, delta, maxiter):
 #    return alpha_plus 
 
 def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
-    nu_plus = nu_plus(n, m, 1-accuracy, delta, maxiter)
-    r_minus = r_minus(n, m, frac_abstention, delta, maxiter)
-    if nu_plus <= 0 and r_minus <= 0:
+    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter)
+    r_m = r_minus(n, m, frac_abstention, delta, maxiter)
+    if nu_p <= 0 and r_m <= 0:
         return 0
-    if nu_plus > 0 and r_minus <= 0:
+    if nu_p > 0 and r_m <= 0:
         return np.Inf
-    return nu_plus/r_minus
+    return nu_p/r_m
 
 # Get optimal eta for upper tail
 def get_eta_star_upper(n, m, alpha, delta, maxiter):
+    alpha = np.round(alpha,2)
+    delta = np.round(alpha,2)
     fname = f'eta_star_{n}_{alpha}_{delta}'
     fpath = CACHE+fname+'.npy'
     if os.path.exists( fpath ):
         return np.load( fpath )
     else:
-        eta_grid = np.logspace(-5,1,100)
+        print(f"Computing eta_star for {n}, {alpha}, {delta}")
+        eta_grid = np.logspace(-5,1,20)
         best_x = 0
         eta_star = 1
         for eta in eta_grid:
-            t = normalized_vapnik_tail_upper(n, m, delta, eta, maxiter)
-            x = 0.5*(t*np.sqrt(4*alpha+4*eta+t*t) + 2*alpha + t*t)
+            try:
+                t = normalized_vapnik_tail_upper(n, m, delta, eta, 20)
+            except:
+                pass
+            x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
             if x >= best_x:
                 best_x = x
                 eta_star = eta
         os.makedirs(CACHE, exist_ok=True)
         np.save( fpath, eta_star )
+
         return eta_star
 
 if __name__ == "__main__":
