@@ -12,12 +12,12 @@ CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
 def cacheable(func):
     def cache_func(*args):
-        fname = str(pathlib.Path(__file__).parent.absolute()) + '/.cache/' + str(func).split(' ')[1] + str(args) + '.pkl'
-        os.makedirs('./.cache/', exist_ok=True)
+        fname = CACHE + str(func).split(' ')[1] + str(args) + '.pkl'
+        os.makedirs(CACHE, exist_ok=True)
         try:
             filehandler = open(fname, 'rb')
-            print("Using cached version of " + str(func).split(' ')[1])
-            return pkl.load(filehandler)    
+            result = pkl.load(filehandler)
+            return result 
         except:
             filehandler = open(fname, 'wb')
             result = func(*args)

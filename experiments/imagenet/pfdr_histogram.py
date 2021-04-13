@@ -17,6 +17,25 @@ import seaborn as sns
 from core.concentration import *
 import pdb
 
+def plot_histograms(df_list,alpha,delta):
+    fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
+
+    for i in range(len(df_list)):
+        df = df_list[i]
+        axs[0].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True)
+        axs[1].hist(np.array(df['mean size'].tolist()), None, alpha=0.7, density=True)
+    
+    axs[0].set_xlabel('pFDP')
+    axs[0].locator_params(axis='x', nbins=4)
+    axs[0].set_ylabel('density')
+    axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    axs[1].set_xlabel('mean size')
+    axs[1].locator_params(axis='x', nbins=4)
+    sns.despine(ax=axs[0],top=True,right=True)
+    sns.despine(ax=axs[1],top=True,right=True)
+    plt.tight_layout()
+    plt.savefig('../' + (f'outputs/histograms/pfdp_{alpha}_{delta}_imagenet_histograms').replace('.','_') + '.pdf')
+
 def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter):
     total=top_scores.shape[0]
     m=1000
@@ -30,19 +49,28 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, ma
     calib_corrects = calib_corrects[indexes] 
     calib_accuracy = (calib_corrects.flip(dims=(0,)).cumsum(dim=0)/(torch.tensor(range(num_calib))+1)).flip(dims=(0,))
     calib_abstention_freq = (torch.tensor(range(num_calib))+1).float().flip(dims=(0,))/num_calib
-    pfdp_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(300)) ] )
 
-    pfdr = 0.2 
-    sizes_mean = 0.1 
-    lhat = 0.7 
+    starting_index = ((1-calib_accuracy)/calib_abstention_freq < alpha).nonzero(as_tuple=True)[0][0]
 
-    return pfdr, sizes_mean, lhat
+    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(starting_index, num_calib)) ] )
+
+    valid_set_index = max((pfdr_pluses > alpha).nonzero(as_tuple=True)[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
+    
+    lhat = calib_scores[valid_set_index]
+
+    val_predictions = val_scores > lhat
+
+    pfdp = 1-val_corrects[val_predictions].float().mean()
+    
+    mean_size = val_predictions.mean()
+    
+    return pfdp, mean_size, lhat
 
 def experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
     fname = f'.cache/{alpha}_{delta}_{num_lam}_{num_calib}_{num_trials}_dataframe.pkl'
 
-    df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","pfdr","mean size","gamma","delta"])
+    df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","pFDP","mean size","alpha","delta"])
     try:
         df = pd.read_pickle(fname)
     except FileNotFoundError:
@@ -59,9 +87,9 @@ def experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir
         with torch.no_grad():
             local_df_list = []
             for i in tqdm(range(num_trials)):
-                pfdr, mean_size, lhat = trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter)
+                pfdp, mean_size, lhat = trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter)
                 dict_local = {"$\\hat{\\lambda}$": lhat,
-                                "pfdr": pfdr,
+                                "pFDP": pfdp,
                                 "mean size": mean_size,
                                 "alpha": alpha,
                                 "delta": delta,
@@ -73,6 +101,7 @@ def experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir
             df.to_pickle(fname)
 
     df_list = df_list + [df]
+    plot_histograms(df_list, alpha, delta)
 
 def platt_logits(calib_dataset, max_iters=10, lr=0.01, epsilon=0.01):
     calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=1024, shuffle=False, pin_memory=True) 
