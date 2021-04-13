@@ -34,7 +34,7 @@ def plot_histograms(df_list,alpha,delta):
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     plt.tight_layout()
-    plt.savefig('../' + (f'outputs/histograms/pfdp_{alpha}_{delta}_imagenet_histograms').replace('.','_') + '.pdf')
+    plt.savefig((f'outputs/histograms/pfdp_{alpha}_{delta}_imagenet_histograms').replace('.','_') + '.pdf')
 
 def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter):
     total=top_scores.shape[0]
@@ -52,7 +52,7 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, ma
 
     starting_index = ((1-calib_accuracy)/calib_abstention_freq < alpha).nonzero(as_tuple=True)[0][0]
 
-    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(starting_index, num_calib)) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, num_calib) ] )
 
     valid_set_index = max((pfdr_pluses > alpha).nonzero(as_tuple=True)[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
     
@@ -62,7 +62,7 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, ma
 
     pfdp = 1-val_corrects[val_predictions].float().mean()
     
-    mean_size = val_predictions.mean()
+    mean_size = val_predictions.float().mean()
     
     return pfdp, mean_size, lhat
 
