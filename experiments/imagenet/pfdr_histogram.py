@@ -36,7 +36,7 @@ def plot_histograms(df_list,alpha,delta):
     plt.tight_layout()
     plt.savefig((f'outputs/histograms/pfdp_{alpha}_{delta}_imagenet_histograms').replace('.','_') + '.pdf')
 
-def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter):
+def trial_precomputed(top_scores, corrects, alpha, delta, num_calib, maxiter):
     total=top_scores.shape[0]
     m=1000
     perm = torch.randperm(total)
@@ -66,9 +66,9 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, ma
     
     return pfdp, mean_size, lhat
 
-def experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir):
+def experiment(alpha,delta,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    fname = f'.cache/{alpha}_{delta}_{num_lam}_{num_calib}_{num_trials}_dataframe.pkl'
+    fname = f'.cache/{alpha}_{delta}_{num_calib}_{num_trials}_dataframe.pkl'
 
     df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","pFDP","mean size","alpha","delta"])
     try:
@@ -87,7 +87,7 @@ def experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir
         with torch.no_grad():
             local_df_list = []
             for i in tqdm(range(num_trials)):
-                pfdp, mean_size, lhat = trial_precomputed(top_scores, corrects, alpha, delta, num_lam, num_calib, maxiter)
+                pfdp, mean_size, lhat = trial_precomputed(top_scores, corrects, alpha, delta, num_calib, maxiter)
                 dict_local = {"$\\hat{\\lambda}$": lhat,
                                 "pFDP": pfdp,
                                 "mean size": mean_size,
@@ -134,11 +134,10 @@ if __name__ == "__main__":
     alphas = [0.1,0.05]
     deltas = [0.1,0.1]
     params = list(zip(alphas,deltas))
-    num_lam = 100 
     maxiter = int(1e3)
-    num_trials = 10
+    num_trials = 100
     num_calib = 30000
     
     for alpha, delta in params:
         print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
-        experiment(alpha,delta,num_lam,num_calib,num_trials,maxiter,imagenet_val_dir)
+        experiment(alpha,delta,num_calib,num_trials,maxiter,imagenet_val_dir)
