@@ -1,12 +1,30 @@
 import os
+import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from scipy.optimize import brentq
 import pdb
 from pathlib import Path
+import pickle as pkl
 
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
+
+def cacheable(func):
+    def cache_func(*args):
+        fname = str(pathlib.Path(__file__).parent.absolute()) + '/.cache/' + str(func).split(' ')[1] + str(args) + '.pkl'
+        os.makedirs('./.cache/', exist_ok=True)
+        try:
+            filehandler = open(fname, 'rb')
+            print("Using cached version of " + str(func).split(' ')[1])
+            return pkl.load(filehandler)    
+        except:
+            filehandler = open(fname, 'wb')
+            result = func(*args)
+            pkl.dump(result, filehandler)   
+            return result
+
+    return cache_func
 
 def safe_min(x):
     if np.any(np.isnan(x)):
@@ -96,6 +114,7 @@ def shat_lower_tail(s, n, m, delta, eta, maxiter):
     return shat
 
 # General upper and lower bounds
+@cacheable
 def nu_plus(n, m, nu, delta, maxiter):
     eta_star = get_eta_star_upper(n, m, nu, delta, 20)
     t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
@@ -108,6 +127,7 @@ def nu_plus(n, m, nu, delta, maxiter):
         nu_plus = 1
     return nu_plus 
 
+@cacheable
 def r_minus(n, m, r, delta, maxiter):
     eta_star = get_eta_star_upper(n, m, r, delta, 20)
     t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter)
