@@ -101,6 +101,7 @@ def experiment(alpha,delta,num_calib,num_trials,maxiter,imagenet_val_dir):
             df.to_pickle(fname)
 
     df_list = df_list + [df]
+    pdb.set_trace()
     plot_histograms(df_list, alpha, delta)
 
 def platt_logits(calib_dataset, max_iters=10, lr=0.01, epsilon=0.01):

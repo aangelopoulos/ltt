@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
+import json
 import time
 import pathlib
 import os
@@ -210,9 +211,9 @@ def fix_randomness(seed=0):
     random.seed(seed)
 
 def get_imagenet_classes():
-    df = pd.read_csv(dirname + '/map_clsloc.txt', delimiter=' ')
-    arr = df['name'].to_numpy()
-    return arr
+    class_idx = json.load(open("./imagenet_class_index.json", 'rb'))
+    idx2label = [class_idx[str(k)][1] for k in range(len(class_idx))]
+    return idx2label
 
 def get_metrics_precomputed(est_labels,labels,losses,num_classes):
     labels = torch.nn.functional.one_hot(labels,num_classes)
