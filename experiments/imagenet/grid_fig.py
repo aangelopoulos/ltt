@@ -24,7 +24,7 @@ def grid_fig_plot(img_list,classes_list,alphas):
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols)
 
     for i in range(nrows):
-        axs[i,0].set_ylabel(r'$\alpha=$' + str(alphas[i]))
+        axs[i,0].set_ylabel(r'$\alpha=$' + str(alphas[-i-1]))
         for j in range(ncols):
             axs[i,j].imshow(img_list[i][j])
             axs[i,j].xaxis.set_ticks([])
