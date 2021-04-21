@@ -18,9 +18,23 @@ import seaborn as sns
 from core.concentration import *
 import pdb
 
-def grid_fig_plot(mosaic,alphas,classes):
-    fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
+def grid_fig_plot(img_list,classes_list,alphas):
+    nrows = len(img_list)
+    ncols = len(img_list[0])
+    fig, axs = plt.subplots(nrows=nrows,ncols=ncols)
 
+    for i in range(nrows):
+        axs[i,0].set_ylabel(r'$\alpha=$' + str(alphas[i]))
+        for j in range(ncols):
+            axs[i,j].imshow(img_list[i][j])
+            axs[i,j].xaxis.set_ticks([])
+            axs[i,j].yaxis.set_ticks([])
+            axs[i,j].xaxis.set_ticklabels([])
+            axs[i,j].yaxis.set_ticklabels([])
+            axs[i,j].set_title(classes_list[i][j].replace('_','\n'))
+
+    plt.tight_layout()
+    plt.savefig('./outputs/pfdr_grid_fig.pdf')
 
 # r is the number of images to get
 def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, delta, num_calib, maxiter, transform):
@@ -65,40 +79,55 @@ def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, de
     for i in range(len(return_images)):
         if return_images[i].shape[2] == 1:
             return_images[i] = torch.cat((return_images[i],return_images[i],return_images[i]), dim=2)
-    return_image_row = torch.cat(return_images,dim=1)
     
-    return return_image_row, return_image_classes
+    return return_images, return_image_classes
 
 def experiment(alphas,delta,num_calib,maxiter,imagenet_val_dir):
-    transform = transforms.Compose([
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor()
-                    ])
-    dataset = torchvision.datasets.ImageFolder(imagenet_val_dir, transform)
-    image_filenames = np.array([x[0] for x in dataset.imgs])
-    image_classes = np.array([x[1] for x in dataset.imgs])
-    dataset_precomputed = get_logits_dataset('ResNet152', 'Imagenet', imagenet_val_dir)
-    print('Dataset loaded')
-    
-    classes_array = get_imagenet_classes()
-    T = platt_logits(dataset_precomputed)
-    
-    logits, labels = dataset_precomputed.tensors
-    top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
-    corrects = top_classes==labels
+    fname_imgs = './.cache/imgs_for_grid.pkl'
+    fname_classes = './.cache/classes_for_grid.pkl'
 
-    plot_rows_classes = [get_images(5, image_filenames, classes_array, top_scores, labels, corrects, alpha, delta, num_calib, maxiter, transform) for alpha in alphas]
+    try:
+        file = open(fname_imgs,'rb')
+        img_list = pickle.load(file)
+        file.close()
 
-    grid_plot = torch.cat([x[0] for x in plot_rows_classes], dim=0)
-    list_classes = [ x[1] for x in plot_rows_classes ]
-    
-    print(list_classes)
+        file = open(fname_classes,'rb')
+        classes_list = pickle.load(file)
+        file.close()
 
-    plt.imshow(grid_plot)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig('./outputs/grid_fig.pdf')
+    except:
+        transform = transforms.Compose([
+                        transforms.Resize(256),
+                        transforms.CenterCrop(224),
+                        transforms.ToTensor()
+                        ])
+        dataset = torchvision.datasets.ImageFolder(imagenet_val_dir, transform)
+        image_filenames = np.array([x[0] for x in dataset.imgs])
+        image_classes = np.array([x[1] for x in dataset.imgs])
+        dataset_precomputed = get_logits_dataset('ResNet152', 'Imagenet', imagenet_val_dir)
+        print('Dataset loaded')
+        
+        classes_array = get_imagenet_classes()
+        T = platt_logits(dataset_precomputed)
+        
+        logits, labels = dataset_precomputed.tensors
+        top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
+        corrects = top_classes==labels
+
+        plot_rows_classes = [get_images(5, image_filenames, classes_array, top_scores, labels, corrects, alpha, delta, num_calib, maxiter, transform) for alpha in alphas]
+
+        img_list = [x[0] for x in plot_rows_classes]
+        classes_list = [ x[1] for x in plot_rows_classes ]
+
+        filehandler = open(fname_imgs,"wb")
+        pickle.dump(img_list,filehandler)
+        filehandler.close()
+
+        filehandler = open(fname_classes,"wb")
+        pickle.dump(classes_list,filehandler)
+        filehandler.close()
+
+    grid_fig_plot(img_list,classes_list,alphas)
 
 def platt_logits(calib_dataset, max_iters=10, lr=0.01, epsilon=0.01):
     calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=1024, shuffle=False, pin_memory=True) 
