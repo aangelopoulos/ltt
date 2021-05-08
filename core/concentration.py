@@ -7,194 +7,121 @@ from scipy.optimize import brentq
 import pdb
 from pathlib import Path
 import pickle as pkl
-
+from utils import *
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
-def cacheable(func):
-    def cache_func(*args):
-        fname = CACHE + str(func).split(' ')[1] + str(args) + '.pkl'
-        os.makedirs(CACHE, exist_ok=True)
-        try:
-            filehandler = open(fname, 'rb')
-            result = pkl.load(filehandler)
-            return result 
-        except:
-            filehandler = open(fname, 'wb')
-            result = func(*args)
-            pkl.dump(result, filehandler)   
-            return result
+"""
+    ROMANO WOLF MASTER ALGORITHM
+"""
+# there should be N inputs (one for each possible choice in the grid of lambdas)
+# and the subset scoring function should output a real number for each subset of {1,...,N}
+def romano_wolf(inputs,subset_scoring_function):
+    N = inputs.shape[0]
+    S = set(range(N))
+    R = set() 
+    while len(R) < N:
+        dR = S.intersection(set(np.nonzero(inputs <= subset_scoring_function(S))[0]))
+        if len(dR) == 0:
+            return np.array(list(R))
+        else:
+            S.difference_update(dR)
+            R.update(dR)
+    return np.array(list(R))
 
-    return cache_func
+"""
+    RW SPECIALIZATIONS
+"""
+def hb_p_value(r_hat,n,alpha):
+    bentkus_p_value = np.e * stats.binom.cdf(np.ceil(n*r_hat),n,alpha)
+    def h1(y,mu):
+        return y * np.log(y/mu) + (1-y) * np.log((1-y)/(1-mu))
+    hoeffding_p_value = np.exp(-n*h1(min(r_hat,alpha),alpha))
+    return min(bentkus_p_value,hoeffding_p_value)
 
-def safe_min(x):
-    if np.any(np.isnan(x)):
-        return -np.Inf
-    else:
-        return x.min()
+# loss_table is an n x N table containing the loss of each point at value lambda
+# lambdas is the grid of lambdas
+# alpha is the desired loss
+# delta is the high probability bound
+def romano_wolf_HB(loss_table,lambdas,alpha,delta):
+    n = loss_table.shape[0]
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
+    def subset_scoring_function(S):
+        return delta/len(S)
+    return romano_wolf(p_values,subset_scoring_function)
 
-# replicates the functionality of R's expand.grid
-def expand_grid(arr1,arr2):
-    params = np.meshgrid(arr2,arr1)
-    return params[1].T.flatten(), params[0].T.flatten()
+def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=1000):
+    n = loss_table.shape[0]
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
+    z_table = np.zeros_like(loss_table)
 
-# Get t
-# Equation 12 in Lihua's note 
-def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter):
-    c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
-    c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
-    def _tailprob(x):
-        gamma, n_p = expand_grid(np.arange(0.001, 0.5 + 0.001, 0.001), np.arange(0.5, 3 + 0.1, 0.1))
-        n_p = np.ceil(n**(n_p))
-        kappa = eta + x**2/2 + x*np.sqrt(x**2/4 + eta)
-        kappa = eta + (gamma + n/n_p) / (1 + n/n_p) * np.sqrt(kappa) 
-        fac1 = 1 - np.exp(-n_p*x**2/2 * gamma**2/(1 + gamma**2*x**2/36/eta))
-        fac2 = 1 - (np.sqrt(1+eta) - np.sqrt(eta))**2 / (n_p * x**2 * gamma**2)
-        log_denom = np.log(np.maximum(0,fac1,fac2))
 
-        g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / kappa)
-        log_Delta = np.log(m*(n + n_p) + 1)
-        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
+"""
+    NAIVE ALGORITHM
+"""
+# Just select the set of lambdas where the 1-delta quantile of the loss table is below alpha.
+def naive_rejection_region(loss_table,lambdas,alpha,delta):
+    quantiles = np.quantile(loss_table,1-delta,axis=0,interpolation='higher') 
+    R = np.nonzero(quantiles < alpha)[0] 
+    return R
 
-        tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
-        gauss = 1-stats.norm.cdf(tmp)
-        extra_term = np.log(2*n*m + 1) - log_denom
-        log_prob_bentkus_dzindzalieta = safe_min(c1 + np.log(gauss) + extra_term)
-        log_prob_pinelis = safe_min(np.log(gauss + stats.norm.pdf(tmp)/(9+tmp**2)*c2) + extra_term)
-        log_prob_hoeffding = safe_min(-tmp**2/2 + extra_term)
-        log_prob = np.min([log_prob_bardenet, log_prob_bentkus_dzindzalieta, log_prob_pinelis, log_prob_hoeffding])
-        return log_prob - np.log(delta)
+"""
+    SIMULATION OF LOSSES
+"""
+def AR_Noise_Process(signal,alpha,n,N):
+    # Define the correlation of the AR noise process
+    corr = 0.9
+    sigma2 = 1/(1-corr**2)
+    # Now find the sequence of mus that leads to the right expected values of an AR process
+    mus = np.zeros_like(signal)
+    for j in range(N):
+        def _condition(mu_j):
+            return stats.norm.cdf(0,-mu_j,np.sqrt(1+sigma2)) - signal[j]
+        mus[j] = brentq(_condition,-100,100)
+    # Simulate the AR process now
+    loss_table = np.zeros((n,N))
+    u = np.random.normal(loc=0,scale=np.sqrt(sigma2),size=n)
+    for j in range(N):
+        loss_table[:,j] = stats.norm.cdf(u + mus[j])
+        u = corr*u + np.random.normal(loc=0,scale=1,size=n)
+    return loss_table
 
-    return brentq(_tailprob,0,1,maxiter=maxiter) 
-
-# Equation 11 in Lihua's note.
-def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter):
-    c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
-    c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
-    def _tailprob(x):
-        gamma, n_p = expand_grid(np.arange(0.001, 0.5 + 0.001, 0.001), np.arange(0.5, 3 + 0.1, 0.1))
-        n_p = np.ceil(n**(n_p))
-        kappa_plus = eta + x**2/2 + x*np.sqrt(x**2/4 + eta)
-        kappa_minus = eta + (gamma + n/n_p) / (1 + n/n_p) * np.sqrt(kappa_plus) 
-        fac1 = 1 - np.exp(-n_p*x**2/2 * gamma**2/(1 + gamma**2*x**2/36/kappa_plus))
-        fac2 = 1 - (np.sqrt(1+kappa_plus) - np.sqrt(kappa_plus))**2 / (n_p * x**2 * gamma**2)
-        log_denom = np.log(np.maximum(0,fac1,fac2))
-
-        g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / eta)
-        log_Delta = np.log(m*(n + n_p) + 1)
-        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
-
-        tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
-        gauss = 1-stats.norm.cdf(tmp)
-        extra_term = np.log(2*n*m + 1) - log_denom
-        log_prob_bentkus_dzindzalieta = safe_min(c1 + np.log(gauss) + extra_term)
-        log_prob_pinelis = safe_min(np.log(gauss + stats.norm.pdf(tmp)/(9+tmp**2)*c2) + extra_term)
-        log_prob_hoeffding = safe_min(-tmp**2/2 + extra_term)
-        log_prob = np.min([log_prob_bardenet, log_prob_bentkus_dzindzalieta, log_prob_pinelis, log_prob_hoeffding])
-        return log_prob - np.log(delta)
-
-    return brentq(_tailprob,0,1,maxiter=maxiter) 
-
-# Return upper bound fdr
-def shat_upper_tail(s, n, m, delta, eta, maxiter):
-    t = normalized_vapnik_tail_upper(n, m, delta, eta, maxiter)
-    def _condition(shat):
-        return (shat - s)/np.sqrt(shat + eta) - t
-    shat = brentq(_condition,0,1,maxiter=maxiter) 
-    return shat
-
-def shat_lower_tail(s, n, m, delta, eta, maxiter):
-    t = normalized_vapnik_tail_lower(n, m, delta, eta, maxiter)
-    def _condition(shat):
-        return (s - shat)/np.sqrt(s + eta) - t
-    try:
-        shat = brentq(_condition,0,1,maxiter=maxiter) 
-    except:
-        print("Warning: setting \hat{s} to 0 due to failed search")
-        shat = 0
-    return shat
-
-# General upper and lower bounds
-@cacheable
-def nu_plus(n, m, nu, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, nu, delta, 20)
-    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
-    def _condition(nu_plus):
-        return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
-    try:
-        nu_plus = brentq(_condition,0,1,maxiter=maxiter)
-    except:
-        print("Warning: setting nu_plus to 1 due to failed search")
-        nu_plus = 1
-    return nu_plus 
-
-@cacheable
-def r_minus(n, m, r, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, r, delta, 20)
-    t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter)
-    r_minus = r - t2*np.sqrt(max(r+eta_star, 0))
-    return r_minus 
-
-# Return required fdp needed to achieve an fdr of alpha
-def required_fdp(n, m, alpha, delta, maxiter):
-    return nu_plus(n, m, alpha, delta, maxiter)
-#    eta_star = get_eta_star_upper(n, m, alpha, delta, maxiter)
-#    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
-#    def _condition(alpha_plus):
-#        return alpha - (alpha_plus + t * np.sqrt(alpha_plus + eta_star))
-#    try:
-#        alpha_plus = brentq(_condition,0,1,maxiter=maxiter)
-#    except:
-#        print("Warning: setting alpha_plus to 0 due to failed search")
-#        alpha_plus = 0
-#    return alpha_plus 
-
-def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
-    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter)
-    r_m = r_minus(n, m, frac_abstention, delta, maxiter)
-    if nu_p <= 0 and r_m <= 0:
-        return 0
-    if nu_p > 0 and r_m <= 0:
-        return np.Inf
-    return nu_p/r_m
-
-# Get optimal eta for upper tail
-def get_eta_star_upper(n, m, alpha, delta, maxiter):
-    alpha = np.round(alpha,2)
-    delta = np.round(alpha,2)
-    fname = f'eta_star_{n}_{alpha}_{delta}'
-    fpath = CACHE+fname+'.npy'
-    if os.path.exists( fpath ):
-        return np.load( fpath )
-    else:
-        print(f"Computing eta_star for {n}, {alpha}, {delta}")
-        eta_grid = np.logspace(-5,1,20)
-        best_x = 0
-        eta_star = 1
-        for eta in eta_grid:
-            try:
-                t = normalized_vapnik_tail_upper(n, m, delta, eta, 20)
-            except:
-                pass
-            x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
-            if x >= best_x:
-                best_x = x
-                eta_star = eta
-        os.makedirs(CACHE, exist_ok=True)
-        np.save( fpath, eta_star )
-
-        return eta_star
+"""
+    PLOT SIMULATION AND REJECTION REGIONS
+"""
 
 if __name__ == "__main__":
-    s = 0.2
-    ns = np.logspace(2,5,100)
+    N = 1000
+    n = 4000
     m = 1000
     delta = 0.2
     alpha = 0.1
-    maxiter = 100000
-    eta_star_upper = get_eta_star_upper(ns[0], m, alpha, delta, maxiter)
+    # Create a signal that dips below alpha at some points 
+    signal = np.concatenate((np.linspace(alpha*1.5,alpha/2,int(np.floor(N/2))),np.linspace(alpha/2,alpha*1.5,int(np.ceil(N/2)))),axis=0)
+    loss_table = AR_Noise_Process(signal,alpha,n,N)
+    lambdas = np.linspace(0,1,N)
+    # Get rejection regions for different methods
+    R_widest = (np.nonzero(signal < alpha)[0][0],np.nonzero(signal<alpha)[0][-1])
+    R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
 
-    # Plot upper tail
-    shats = [shat_upper_tail(s, n, m, delta, eta_star_upper, maxiter) for n in ns]
-    plt.plot(ns,shats)
-    plt.xscale('log')
-    plt.savefig('../outputs/shat_upper_tail.pdf')
+    R = romano_wolf_HB(loss_table,lambdas,alpha,delta)
+    
+    plt.figure()
+    plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
+    plt.hlines(alpha,xmin=min(lambdas),xmax=max(lambdas),color='k',linewidth=3,alpha=0.5,linestyle='dashed',label=r'$\alpha$')
+    plt.plot(lambdas,loss_table[0:10,:].T,alpha=0.05,color='#73D673') # Sample losses
+    # Sets
+    plt.hlines(0,xmin=lambdas[R_widest[0]],xmax=lambdas[R_widest[-1]],color='y',linewidth=3,label=r'Empirical risk < $\alpha$')
+    plt.vlines((lambdas[R_widest[0]],lambdas[R_widest[-1]]),ymin=-0.02,ymax=0.02,color='y',linewidth=3)
+    plt.hlines(0,xmin=lambdas[R_naive[0]],xmax=lambdas[R_naive[-1]],color='b',linewidth=3,label=r'Empirical risk < $\alpha$, with proportion 1-$\delta$')
+    plt.vlines((lambdas[R_naive[0]],lambdas[R_naive[-1]]),ymin=-0.02,ymax=0.02,color='b',linewidth=3)
+    plt.hlines(0,xmin=lambdas[min(R)],xmax=lambdas[max(R)],color='r',linewidth=3,label=r'RWHB Rejection Region')
+    plt.vlines((lambdas[min(R)],lambdas[max(R)]),ymin=-0.02,ymax=0.02,color='r',linewidth=3)
+    # Finish
+    plt.legend()
+    plt.show()
+
+
+    pdb.set_trace()
+    print("HI")
+
