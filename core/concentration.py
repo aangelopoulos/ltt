@@ -81,7 +81,7 @@ def naive_rejection_region(loss_table,lambdas,alpha,delta):
     UNIFORM REGION 
 """
 def uniform_region(loss_table,lambdas,alpha,delta,m):
-    thresh = required_fdp(loss_table.shape[0], m, alpha, delta, maxiter=100)
+    thresh = required_fdp(loss_table.shape[0], m, alpha, delta, maxiter=100,num_grid_points=lambdas.shape[0])
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda (FDP)
     R = np.nonzero(r_hats < thresh)[0]
     return R

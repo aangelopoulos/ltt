@@ -39,7 +39,7 @@ def expand_grid(arr1,arr2):
 
 # Get t
 # Equation 12 in Lihua's note 
-def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter):
+def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
     def _tailprob(x):
@@ -53,6 +53,9 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter):
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / kappa)
         log_Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, log_Delta changes.
+        if num_grid_points != None:
+            log_Delta = np.log(num_grid_points)
         log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
@@ -67,7 +70,7 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter):
     return brentq(_tailprob,0,1,maxiter=maxiter) 
 
 # Equation 11 in Lihua's note.
-def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter):
+def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
     def _tailprob(x):
@@ -81,6 +84,9 @@ def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter):
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / eta)
         log_Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, log_Delta changes.
+        if num_grid_points != None:
+            log_Delta = np.log(num_grid_points)
         log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
@@ -95,15 +101,15 @@ def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter):
     return brentq(_tailprob,0,1,maxiter=maxiter) 
 
 # Return upper bound fdr
-def shat_upper_tail(s, n, m, delta, eta, maxiter):
-    t = normalized_vapnik_tail_upper(n, m, delta, eta, maxiter)
+def shat_upper_tail(s, n, m, delta, eta, maxiter, num_grid_points=None):
+    t = normalized_vapnik_tail_upper(n, m, delta, eta, maxiter, num_grid_points=num_grid_points)
     def _condition(shat):
         return (shat - s)/np.sqrt(shat + eta) - t
     shat = brentq(_condition,0,1,maxiter=maxiter) 
     return shat
 
-def shat_lower_tail(s, n, m, delta, eta, maxiter):
-    t = normalized_vapnik_tail_lower(n, m, delta, eta, maxiter)
+def shat_lower_tail(s, n, m, delta, eta, maxiter, num_grid_points=None):
+    t = normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=num_grid_points)
     def _condition(shat):
         return (s - shat)/np.sqrt(s + eta) - t
     try:
@@ -115,9 +121,9 @@ def shat_lower_tail(s, n, m, delta, eta, maxiter):
 
 # General upper and lower bounds
 @cacheable
-def nu_plus(n, m, nu, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, nu, delta, 20)
-    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
+def nu_plus(n, m, nu, delta, maxiter, num_grid_points):
+    eta_star = get_eta_star_upper(n, m, nu, delta, 20, num_grid_points=num_grid_points)
+    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter, num_grid_points=num_grid_points)
     def _condition(nu_plus):
         return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
     try:
@@ -129,19 +135,19 @@ def nu_plus(n, m, nu, delta, maxiter):
     return nu_plus 
 
 @cacheable
-def r_minus(n, m, r, delta, maxiter):
-    eta_star = get_eta_star_upper(n, m, r, delta, 20)
-    t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter)
+def r_minus(n, m, r, delta, maxiter, num_grid_points):
+    eta_star = get_eta_star_upper(n, m, r, delta, 20, num_grid_points=num_grid_points)
+    t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter, num_grid_points=num_grid_points)
     r_minus = r - t2*np.sqrt(max(r+eta_star, 0))
     return r_minus 
 
 # Return required fdp needed to achieve an fdr of alpha
-def required_fdp(n, m, alpha, delta, maxiter):
-    return nu_plus(n, m, alpha, delta, maxiter)
+def required_fdp(n, m, alpha, delta, maxiter, num_grid_points=None):
+    return nu_plus(n, m, alpha, delta, maxiter, num_grid_points)
 
-def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
-    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter)
-    r_m = r_minus(n, m, frac_abstention, delta, maxiter)
+def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
+    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
+    r_m = r_minus(n, m, frac_abstention, delta, maxiter,num_grid_points=num_grid_points)
     if nu_p <= 0 and r_m <= 0:
         return 0
     if nu_p > 0 and r_m <= 0:
@@ -149,7 +155,7 @@ def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
     return nu_p/r_m
 
 # Get optimal eta for upper tail
-def get_eta_star_upper(n, m, alpha, delta, maxiter):
+def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
     alpha = np.round(alpha,2)
     delta = np.round(alpha,2)
     fname = f'eta_star_{n}_{alpha}_{delta}'
@@ -163,7 +169,7 @@ def get_eta_star_upper(n, m, alpha, delta, maxiter):
         eta_star = 1
         for eta in eta_grid:
             try:
-                t = normalized_vapnik_tail_upper(n, m, delta, eta, 20)
+                t = normalized_vapnik_tail_upper(n, m, delta, eta, 20, num_grid_points=num_grid_points)
             except:
                 pass
             x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
