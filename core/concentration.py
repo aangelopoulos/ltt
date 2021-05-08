@@ -2,12 +2,14 @@ import os
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import scipy.stats as stats
 from scipy.optimize import brentq
 import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
+from uniform_concentration import required_fdp
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
 """
@@ -76,11 +78,20 @@ def naive_rejection_region(loss_table,lambdas,alpha,delta):
     return R
 
 """
+    UNIFORM REGION 
+"""
+def uniform_region(loss_table,lambdas,alpha,delta,m):
+    thresh = required_fdp(loss_table.shape[0], m, alpha, delta, maxiter=100)
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda (FDP)
+    R = np.nonzero(r_hats < thresh)[0]
+    return R
+
+"""
     SIMULATION OF LOSSES
 """
 def AR_Noise_Process(signal,alpha,n,N):
     # Define the correlation of the AR noise process
-    corr = 0.4
+    corr = 0.1
     sigma2 = 1/(1-corr**2)
     # Now find the sequence of mus that leads to the right expected values of an AR process
     mus = np.zeros_like(signal)
@@ -105,9 +116,9 @@ if __name__ == "__main__":
     n = 5000
     m = 1000
     delta = 0.2
-    alpha = 0.1
+    alpha = 0.15
     # Create a signal that dips below alpha at some points 
-    signal = np.concatenate((np.linspace(alpha*1.5,alpha/2,int(np.floor(N/2))),np.linspace(alpha/2,alpha*1.5,int(np.ceil(N/2)))),axis=0)
+    signal = np.concatenate((np.linspace(alpha*1.5,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,alpha*1.5,int(np.ceil(N/2)))),axis=0)
     loss_table = AR_Noise_Process(signal,alpha,n,N)
     lambdas = np.linspace(0,1,N)
     # Get rejection regions for different methods
@@ -115,25 +126,37 @@ if __name__ == "__main__":
     R_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
     R_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
     R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
+    R_uniform = uniform_region(loss_table,lambdas,alpha,delta,m)
+    Rs = (R_widest, 
+            R_bootstrap, 
+            R_HB, 
+            R_naive,
+            R_uniform)
+    labels = (r'Empirical risk < $\alpha$',
+                r'1-$\delta$ proportion of losses < $\alpha$',
+                r'RWMB Rejection Region',
+                r'RWHB Rejection Region',
+                r'Uniform Concentration Rejection Region')
+    colors = ('#C18268',
+              '#5F9A84',
+              '#B4926D',
+              '#4A7087',
+              '#887D82')
     
     plt.figure()
     plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
     plt.hlines(alpha,xmin=min(lambdas),xmax=max(lambdas),color='k',linewidth=3,alpha=0.5,linestyle='dashed',label=r'$\alpha$')
-    plt.plot(lambdas,loss_table[0:10,:].T,alpha=0.05,color='#73D673') # Sample losses
+    plt.plot(lambdas,loss_table[0:10,:].T,alpha=0.02,color='#73D673') # Sample losses
     # Sets
-    plt.hlines(0,xmin=lambdas[R_widest[0]],xmax=lambdas[R_widest[-1]],color='y',linewidth=3,label=r'Empirical risk < $\alpha$')
-    plt.vlines((lambdas[R_widest[0]],lambdas[R_widest[-1]]),ymin=-0.02,ymax=0.02,color='y',linewidth=3)
-    plt.hlines(-0.04,xmin=lambdas[R_naive[0]],xmax=lambdas[R_naive[-1]],color='b',linewidth=3,label=r'1-$\delta$ proportion of losses < $\alpha$')
-    plt.vlines((lambdas[R_naive[0]],lambdas[R_naive[-1]]),ymin=-0.06,ymax=-0.02,color='b',linewidth=3)
-    plt.hlines(-0.08,xmin=lambdas[min(R_bootstrap)],xmax=lambdas[max(R_bootstrap)],color='m',linewidth=3,label=r'RWMB Rejection Region')
-    plt.vlines((lambdas[min(R_bootstrap)],lambdas[max(R_bootstrap)]),ymin=-0.10,ymax=-0.06,color='m',linewidth=3)
-    plt.hlines(-0.12,xmin=lambdas[min(R_HB)],xmax=lambdas[max(R_HB)],color='r',linewidth=3,label=r'RWHB Rejection Region')
-    plt.vlines((lambdas[min(R_HB)],lambdas[max(R_HB)]),ymin=-0.14,ymax=-0.10,color='r',linewidth=3)
+    for i in range(len(Rs)):
+        if len(Rs[i]) == 0:
+            print("Empty region:" + labels[i])
+        else:
+            plt.hlines(-0.04*i,xmin=lambdas[Rs[i][0]],xmax=lambdas[Rs[i][-1]],linewidth=3,color=colors[i],label=labels[i])
+            plt.vlines((lambdas[Rs[i][0]],lambdas[Rs[i][-1]]),ymin=-0.04*i-0.02,ymax=-0.04*i+0.02,color=colors[i],linewidth=3)
     # Finish
     plt.legend()
+    sns.despine(top=True,right=True)
+    plt.xlabel(r'$\lambda')
+    plt.ylabel("Loss/Risk")
     plt.show()
-
-
-    pdb.set_trace()
-    print("HI")
-

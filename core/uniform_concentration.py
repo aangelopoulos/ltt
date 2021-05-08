@@ -121,10 +121,11 @@ def nu_plus(n, m, nu, delta, maxiter):
     def _condition(nu_plus):
         return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
     try:
-        nu_plus = brentq(_condition,0,1,maxiter=maxiter)
+        nu_plus = brentq(_condition,-0.1,1.1,maxiter=maxiter)
+        nu_plus = min(max(nu_plus,0),1)
     except:
         print("Warning: setting nu_plus to 1 due to failed search")
-        nu_plus = 1
+        nu_plus = 1 
     return nu_plus 
 
 @cacheable
@@ -137,16 +138,6 @@ def r_minus(n, m, r, delta, maxiter):
 # Return required fdp needed to achieve an fdr of alpha
 def required_fdp(n, m, alpha, delta, maxiter):
     return nu_plus(n, m, alpha, delta, maxiter)
-#    eta_star = get_eta_star_upper(n, m, alpha, delta, maxiter)
-#    t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter)
-#    def _condition(alpha_plus):
-#        return alpha - (alpha_plus + t * np.sqrt(alpha_plus + eta_star))
-#    try:
-#        alpha_plus = brentq(_condition,0,1,maxiter=maxiter)
-#    except:
-#        print("Warning: setting alpha_plus to 0 due to failed search")
-#        alpha_plus = 0
-#    return alpha_plus 
 
 def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter):
     nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter)
