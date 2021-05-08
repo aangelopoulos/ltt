@@ -50,11 +50,21 @@ def romano_wolf_HB(loss_table,lambdas,alpha,delta):
         return delta/len(S)
     return romano_wolf(p_values,subset_scoring_function)
 
-def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=1000):
+def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
     n = loss_table.shape[0]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
-    z_table = np.zeros_like(loss_table)
-
+    z_table = loss_table - loss_table.mean(axis=0)[np.newaxis,:] # Broadcast so Z_{i,j}=l_{i,j}-mean_i(l_{i,j})
+    es = np.random.random(size=(n,B))
+    cs = np.zeros((B,N))
+    # Bootstrapping
+    for b in range(B):
+        cs[b] = np.mean(z_table * es[:,b:b+1],axis=0)
+    def subset_scoring_function(S):
+        idx = np.array(list(S))
+        subset = cs[:,idx]
+        maxes = np.max(subset,axis=1)
+        return -np.quantile(maxes,1-delta,interpolation='higher') # Weird negative due to flipped sign in romano-wolf algorithm 
+    return romano_wolf(-(alpha-r_hats),subset_scoring_function)
 
 """
     NAIVE ALGORITHM
@@ -70,7 +80,7 @@ def naive_rejection_region(loss_table,lambdas,alpha,delta):
 """
 def AR_Noise_Process(signal,alpha,n,N):
     # Define the correlation of the AR noise process
-    corr = 0.9
+    corr = 0.4
     sigma2 = 1/(1-corr**2)
     # Now find the sequence of mus that leads to the right expected values of an AR process
     mus = np.zeros_like(signal)
@@ -92,7 +102,7 @@ def AR_Noise_Process(signal,alpha,n,N):
 
 if __name__ == "__main__":
     N = 1000
-    n = 4000
+    n = 5000
     m = 1000
     delta = 0.2
     alpha = 0.1
@@ -102,9 +112,9 @@ if __name__ == "__main__":
     lambdas = np.linspace(0,1,N)
     # Get rejection regions for different methods
     R_widest = (np.nonzero(signal < alpha)[0][0],np.nonzero(signal<alpha)[0][-1])
+    R_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
+    R_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
     R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
-
-    R = romano_wolf_HB(loss_table,lambdas,alpha,delta)
     
     plt.figure()
     plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
@@ -113,10 +123,12 @@ if __name__ == "__main__":
     # Sets
     plt.hlines(0,xmin=lambdas[R_widest[0]],xmax=lambdas[R_widest[-1]],color='y',linewidth=3,label=r'Empirical risk < $\alpha$')
     plt.vlines((lambdas[R_widest[0]],lambdas[R_widest[-1]]),ymin=-0.02,ymax=0.02,color='y',linewidth=3)
-    plt.hlines(0,xmin=lambdas[R_naive[0]],xmax=lambdas[R_naive[-1]],color='b',linewidth=3,label=r'Empirical risk < $\alpha$, with proportion 1-$\delta$')
-    plt.vlines((lambdas[R_naive[0]],lambdas[R_naive[-1]]),ymin=-0.02,ymax=0.02,color='b',linewidth=3)
-    plt.hlines(0,xmin=lambdas[min(R)],xmax=lambdas[max(R)],color='r',linewidth=3,label=r'RWHB Rejection Region')
-    plt.vlines((lambdas[min(R)],lambdas[max(R)]),ymin=-0.02,ymax=0.02,color='r',linewidth=3)
+    plt.hlines(-0.04,xmin=lambdas[R_naive[0]],xmax=lambdas[R_naive[-1]],color='b',linewidth=3,label=r'1-$\delta$ proportion of losses < $\alpha$')
+    plt.vlines((lambdas[R_naive[0]],lambdas[R_naive[-1]]),ymin=-0.06,ymax=-0.02,color='b',linewidth=3)
+    plt.hlines(-0.08,xmin=lambdas[min(R_bootstrap)],xmax=lambdas[max(R_bootstrap)],color='m',linewidth=3,label=r'RWMB Rejection Region')
+    plt.vlines((lambdas[min(R_bootstrap)],lambdas[max(R_bootstrap)]),ymin=-0.10,ymax=-0.06,color='m',linewidth=3)
+    plt.hlines(-0.12,xmin=lambdas[min(R_HB)],xmax=lambdas[max(R_HB)],color='r',linewidth=3,label=r'RWHB Rejection Region')
+    plt.vlines((lambdas[min(R_HB)],lambdas[max(R_HB)]),ymin=-0.14,ymax=-0.10,color='r',linewidth=3)
     # Finish
     plt.legend()
     plt.show()
