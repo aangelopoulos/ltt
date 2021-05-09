@@ -63,7 +63,7 @@ def plot_required_fdp(ns, m, alphas, deltas, maxiter):
             g.axes[i,j].xaxis.set_ticklabels([])
             g.axes[i,j].yaxis.set_ticklabels([])
 
-    plt.savefig('../outputs/alpha_plus.pdf')
+    plt.savefig('../outputs/concentration_results/alpha_plus.pdf')
 
 
 if __name__ == "__main__":

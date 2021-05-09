@@ -21,6 +21,7 @@ dependencies:
     - pyyaml=5.1
     - pycocotools>=2.0.1
     - seaborn
+    - statsmodels
     - pip:
         - git+https://github.com/mapillary/inplace_abn.git@v1.0.12
         - randaugment

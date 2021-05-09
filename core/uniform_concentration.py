@@ -194,4 +194,4 @@ if __name__ == "__main__":
     shats = [shat_upper_tail(s, n, m, delta, eta_star_upper, maxiter) for n in ns]
     plt.plot(ns,shats)
     plt.xscale('log')
-    plt.savefig('../outputs/shat_upper_tail.pdf')
+    plt.savefig('../outputs/concentration_results/shat_upper_tail.pdf')
