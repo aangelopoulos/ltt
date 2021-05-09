@@ -53,6 +53,13 @@ def romano_wolf_HB(loss_table,lambdas,alpha,delta):
         return delta/len(S)
     return romano_wolf(p_values,subset_scoring_function)
 
+def romano_wolf_CLT(loss_table,lambdas,alpha,delta):
+    t_values = np.sqrt(loss_table.shape[0])*(alpha - loss_table.mean(axis=0))/loss_table.std(axis=0) 
+    p_values = 1-stats.norm.cdf(t_values)
+    def subset_scoring_function(S):
+        return delta/len(S)
+    return romano_wolf(p_values,subset_scoring_function)
+
 def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
     n = loss_table.shape[0]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
@@ -70,15 +77,26 @@ def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
     return romano_wolf(-(alpha-r_hats),subset_scoring_function)
 
 """
+    BONFERRONI MASTER ALGORITHM
+"""
+def bonferroni(p_values,delta):
+    rejections, _, _, _ = multipletests(p_values,delta,method='holm',is_sorted=False,returnsorted=False)
+    R = np.nonzero(rejections)[0]
+    return R 
+
+"""
     BONFERRONI SPECIALIZATIONS 
 """
 def bonferroni_HB(loss_table,lambdas,alpha,delta):
     n = loss_table.shape[0]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
-    rejections, _, _, _ = multipletests(p_values,delta,method='holm',is_sorted=False,returnsorted=False)
-    R = np.nonzero(rejections)[0]
-    return R 
+    return bonferroni(p_values,delta)
+
+def bonferroni_CLT(loss_table,lambdas,alpha,delta):
+    t_values = np.sqrt(loss_table.shape[0])*(alpha - loss_table.mean(axis=0))/loss_table.std(axis=0) 
+    p_values = 1-stats.norm.cdf(t_values)
+    return bonferroni(p_values,delta)
 
 """
     NAIVE ALGORITHM
@@ -121,41 +139,49 @@ def AR_Noise_Process(signal,alpha,n,N,corr):
     PLOT SIMULATION AND REJECTION REGIONS
 """
 
-def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr):
+def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
     # Create a signal that dips below alpha at some points 
-    signal = np.concatenate((np.linspace(alpha*1.5,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,alpha*1.5,int(np.ceil(N/2)))),axis=0)
+    signal = np.concatenate((np.linspace(peak,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,peak,int(np.ceil(N/2)))),axis=0)
     loss_table = AR_Noise_Process(signal,alpha,n,N,corr)
     lambdas = np.linspace(0,1,N)
     # Get rejection regions for different methods
-    R_widest = (np.nonzero(signal < alpha)[0][0],np.nonzero(signal<alpha)[0][-1])
+    R_widest = (np.nonzero(loss_table.mean(axis=0) < alpha)[0][0],np.nonzero(loss_table.mean(axis=0)<alpha)[0][-1])
+    R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
     R_RW_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
     R_RW_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
+    R_RW_CLT = romano_wolf_CLT(loss_table,lambdas,alpha,delta)
     R_bonferroni_HB = bonferroni_HB(loss_table,lambdas,alpha,delta)
-    R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
+    R_bonferroni_CLT = bonferroni_CLT(loss_table,lambdas,alpha,delta)
     R_uniform = uniform_region(loss_table,lambdas,alpha,delta,m)
 
     Rs = (R_widest, 
             R_naive,
             R_RW_bootstrap, 
             R_RW_HB, 
+            R_RW_CLT, 
             R_bonferroni_HB,
+            R_bonferroni_CLT,
             R_uniform)
 
     labels = (r'Empirical risk < $\alpha$',
                 r'1-$\delta$ proportion of losses < $\alpha$',
                 r'RWMB Rejections',
                 r'RWHB Rejections',
-                r'HBBonferroni Rejections',
+                r'RWCLT Rejections',
+                r'BonferroniHB Rejections',
+                r'BonferroniCLT Rejections',
                 r'Bardenet Rejections (uniform)')
 
     colors = ('#C18268',
               '#5F9A84',
               '#B4926D',
+              '#DAFFC1',
               '#FFDAC1',
               '#4A7087',
+              '#6D92B4',
               '#887D82')
     
-    ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.1,color='#73D673') # Sample losses
+    ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
     ax.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
     ax.axhline(alpha,xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
 
@@ -164,9 +190,8 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr):
         if len(Rs[i]) == 0:
             print("Empty region:" + labels[i])
         else:
-            ax.axhline(-0.04*i,xmin=lambdas[Rs[i][0]],xmax=lambdas[Rs[i][-1]],linewidth=3,color=colors[i],label=labels[i])
-            #ax.axvline(lambdas[Rs[i][0]],ymin=-0.04*i-0.02,ymax=-0.04*i+0.02,color=colors[i],linewidth=3)
-            #ax.axvline(lambdas[Rs[i][-1]],ymin=-0.04*i-0.02,ymax=-0.04*i+0.02,color=colors[i],linewidth=3)
+            ax.hlines(-0.04*(i+1),xmin=lambdas[min(Rs[i])],xmax=lambdas[max(Rs[i])],linewidth=3,color=colors[i],label=labels[i])
+            ax.vlines((lambdas[min(Rs[i])],lambdas[max(Rs[i])]),ymin=-0.04*(i+1)-0.02,ymax=-0.04*(i+1)+0.02,linewidth=3,color=colors[i])
 
     # Finish
     sns.despine(top=True,right=True)
@@ -176,18 +201,21 @@ if __name__ == "__main__":
     N = 1000
     m = 1000
     delta = 0.1
-    alphas = (0.05, 0.1, 0.15)
+    alphas = (0.1, 0.15, 0.2)
     # Define the correlation of the AR noise process
-    corrs = (0.01, 0.1, 0.9)
-    fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4,len(corrs)*4))
+    corrs = (0.99, 0.95, 0.90)
+    peaks = (0.8,0.4)
 
-    for i in range(len(alphas)):
-        for j in range(len(corrs)):
-            plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j])
-            if i == 0:
-                axs[i,j].set_title("corr=" + str(corrs[j]))
-            if j == 0:
-                axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]))
+    for peak in peaks:
+        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4,len(corrs)*4))
+        for i in range(len(alphas)):
+            for j in range(len(corrs)):
+                plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak)
+                if i == 0:
+                    axs[i,j].set_title("corr=" + str(corrs[j]))
+                if j == 0:
+                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]))
 
-    axs[len(alphas)-1,len(corrs)-1].legend()
-    plt.savefig("../outputs/concentration_results/concentration_comparison.pdf")
+        axs[len(alphas)-1,len(corrs)-1].legend(loc='upper right')
+        plt.xlim(left=0.2,right=0.8)
+        plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")

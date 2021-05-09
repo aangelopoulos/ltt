@@ -143,7 +143,10 @@ def r_minus(n, m, r, delta, maxiter, num_grid_points):
 
 # Return required fdp needed to achieve an fdr of alpha
 def required_fdp(n, m, alpha, delta, maxiter, num_grid_points=None):
-    return nu_plus(n, m, alpha, delta, maxiter, num_grid_points)
+    required_fdp = nu_plus(n, m, alpha, delta, maxiter, num_grid_points)
+    if required_fdp >= 1 and alpha < 1:
+        required_fdp = 0
+    return required_fdp 
 
 def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
     nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
