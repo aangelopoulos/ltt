@@ -24,14 +24,21 @@ def grid_fig_plot(img_list,classes_list,alphas):
     fig, axs = plt.subplots(nrows=nrows,ncols=ncols)
 
     for i in range(nrows):
-        axs[i,0].set_ylabel(r'$\alpha=$' + str(alphas[-i-1]))
+        axs[i,0].set_ylabel(r'$\alpha=$' + str(alphas[i]))
         for j in range(ncols):
             axs[i,j].imshow(img_list[i][j])
             axs[i,j].xaxis.set_ticks([])
             axs[i,j].yaxis.set_ticks([])
             axs[i,j].xaxis.set_ticklabels([])
             axs[i,j].yaxis.set_ticklabels([])
-            axs[i,j].set_title(classes_list[i][j].replace('_','\n'))
+            titlesplit = classes_list[i][j].split('_')
+            title = ''
+            for unit in titlesplit:
+                if len(unit) + len(title.split('\n')[-1]) < 8:
+                    title = title + unit
+                else:
+                    title = title + '\n' + unit
+            axs[i,j].set_title(title)
 
     plt.tight_layout()
     plt.savefig('./outputs/pfdr_grid_fig.pdf')
@@ -72,8 +79,8 @@ def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, de
     val_images = val_images[indexes]
     val_labels = val_labels[indexes]
 
-    return_image_filenames = [val_images[i] for i in range(r)] 
-    return_image_classes = [classes_array[val_labels[i]] for i in range(r)] 
+    return_image_filenames = [val_images[i+10] for i in range(r)] 
+    return_image_classes = [classes_array[val_labels[i+10]] for i in range(r)] 
 
     return_images = [transform(Image.open(image_filename)).permute(1,2,0) for image_filename in return_image_filenames]
     for i in range(len(return_images)):
@@ -157,7 +164,7 @@ if __name__ == "__main__":
 
     imagenet_val_dir = '/scratch/group/ilsvrc/val'
 
-    alphas = [0.025,0.05, 0.1]
+    alphas = [0.05,0.1, 0.15]
     delta = 0.1
     maxiter = int(1e3)
     num_calib = 30000
