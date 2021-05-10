@@ -181,7 +181,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
               '#6D92B4',
               '#887D82')
     
-    ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
+    #ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
     ax.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
     ax.axhline(alpha,xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
 
@@ -208,14 +208,19 @@ if __name__ == "__main__":
 
     for peak in peaks:
         fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4,len(corrs)*4))
-        for i in range(len(alphas)):
-            for j in range(len(corrs)):
+        for i in reversed(range(len(alphas))):
+            for j in reversed(range(len(corrs))):
                 plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak)
                 if i == 0:
-                    axs[i,j].set_title("corr=" + str(corrs[j]))
+                    axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=20)
                 if j == 0:
-                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]))
+                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=20)
+                axs[i,j].set_xticks([.2,.5,.8])
+                axs[i,j].set_xticklabels([.2,.5,.8], fontsize=15)
+                axs[i,j].set_yticks([0,.25,.5])
+                axs[i,j].set_yticklabels([0,.25,.5], fontsize=15)
 
-        axs[len(alphas)-1,len(corrs)-1].legend(loc='upper right')
+        if peak == peaks[-1]:
+            axs[len(alphas)-1,len(corrs)-1].legend(loc='upper right', fontsize=15)
         plt.xlim(left=0.2,right=0.8)
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
