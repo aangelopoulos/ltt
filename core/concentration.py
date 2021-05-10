@@ -1,4 +1,5 @@
-import os
+import os, sys, inspect
+sys.path.insert(1, os.path.join(sys.path[0], '../'))
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt 
@@ -10,7 +11,7 @@ import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
-from uniform_concentration import required_fdp
+from core.uniform_concentration import required_fdp
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
 """
@@ -62,6 +63,7 @@ def romano_wolf_CLT(loss_table,lambdas,alpha,delta):
 
 def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
     n = loss_table.shape[0]
+    N = loss_table.shape[1]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
     z_table = loss_table - loss_table.mean(axis=0)[np.newaxis,:] # Broadcast so Z_{i,j}=l_{i,j}-mean_i(l_{i,j})
     es = np.random.random(size=(n,B))

@@ -17,7 +17,8 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import *
+from core.concentration import romano_wolf_multiplier_bootstrap, bonferroni_HB, uniform_region
+from core.uniform_concentration import required_fdp
 import pdb
 
 parser = argparse.ArgumentParser(description='ASL MS-COCO predictor')
@@ -77,7 +78,7 @@ def get_example_fdr_and_size_tables(scores, labels, lambdas_example_table):
 
     return loss_table, sizes_table
 
-def trial_precomputed(example_loss_table, example_size_table, lambdas_example_table, alpha, delta, num_lam, num_calib, m):
+def trial_precomputed(rejection_region_function, rejection_region_name, example_loss_table, example_size_table, lambdas_example_table, alpha, delta, num_lam, num_calib, m):
     rng_state = np.random.get_state()
     np.random.shuffle(example_loss_table)
     np.random.set_state(rng_state)
@@ -86,9 +87,16 @@ def trial_precomputed(example_loss_table, example_size_table, lambdas_example_ta
     calib_losses, val_losses = (example_loss_table[0:num_calib], example_loss_table[num_calib:])
     calib_sizes, val_sizes = (example_size_table[0:num_calib], example_size_table[num_calib:])
 
-    alpha_plus = required_fdp(calib_losses.shape[0], m, alpha, delta, maxiter=1000)
+    if rejection_region_name == "Bardenet (Uniform)":
+        R = rejection_region_function(calib_losses,lambdas_example_table,alpha,delta,m)
+    else:
+        R = rejection_region_function(calib_losses,lambdas_example_table,alpha,delta)
 
-    lhat = get_lhat_from_table(calib_losses, lambdas_example_table, alpha_plus)
+    # Pick the largest set
+    if len(R) == 0:
+        lhat = -1
+    else:
+        lhat = lambdas_example_table[min(R)]
 
     fdrs = val_losses[:,np.argmax(lambdas_example_table == lhat)]
     sizes = val_sizes[:,np.argmax(lambdas_example_table == lhat)]
@@ -109,7 +117,7 @@ def plot_histograms(df_list,alpha,delta):
 
         # Sizes will be 10 times as big as recall, since we pool it over runs.
         sizes = torch.cat(df['sizes'].tolist(),dim=0).numpy()
-        axs[1].hist(sizes, np.arange(lofb,rolb+d, d), alpha=0.7, density=True)
+        axs[1].hist(sizes, np.arange(lofb,rolb+d, d), alpha=0.7, density=True, label=df['region name'][0])
     
     axs[0].set_xlabel('FDR')
     axs[0].locator_params(axis='x', nbins=4)
@@ -118,62 +126,69 @@ def plot_histograms(df_list,alpha,delta):
     axs[1].set_xlabel('size')
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
-    #axs[1].legend()
+    axs[1].legend()
     plt.tight_layout()
     plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_histograms').replace('.','_') + '.pdf')
 
 
-def experiment(alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json):
+def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json):
     df_list = []
-    fname = f'../.cache/{alpha}_{delta}_{num_calib}_{num_trials}_dataframe.pkl'
 
-    df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","FDR","sizes","alpha","delta"])
-    try:
-        df = pd.read_pickle(fname)
-    except FileNotFoundError:
-        dataset = tv.datasets.CocoDetection(coco_val_2017_directory,coco_instances_val_2017_json,transform=tv.transforms.Compose([tv.transforms.Resize((args.input_size, args.input_size)),tv.transforms.ToTensor()]))
-        print('Dataset loaded')
-        
-        #model
-        state = torch.load('./ASL/models_local/MS_COCO_TResNet_xl_640_88.4.pth', map_location='cpu')
-        classes_list = np.array(list(state['idx_to_class'].values()))
-        args.num_classes = state['num_classes']
-        model = create_model(args).cuda()
-        model.load_state_dict(state['model'], strict=True)
-        model.eval()
-        print('Model Loaded')
-        corr = get_correspondence(classes_list,dataset.coco.cats)
+    for idx in range(len(rejection_region_functions)):
+        rejection_region_function = rejection_region_functions[idx]
+        rejection_region_name = rejection_region_names[idx]
+        fname = f'../.cache/{alpha}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
-        # get dataset
-        dataset_fname = '../.cache/coco_val.pkl'
-        if os.path.exists(dataset_fname):
-            dataset_precomputed = pkl.load(open(dataset_fname,'rb'))
-            print(f"Precomputed dataset loaded. Size: {len(dataset_precomputed)}")
-        else:
-            dataset_precomputed = get_scores_targets(model, torch.utils.data.DataLoader(dataset,batch_size=1,shuffle=True), corr)
-            pkl.dump(dataset_precomputed,open(dataset_fname,'wb'),protocol=pkl.HIGHEST_PROTOCOL)
+        df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","FDR","sizes","alpha","delta","region name"])
+        try:
+            df = pd.read_pickle(fname)
+        except FileNotFoundError:
+            dataset = tv.datasets.CocoDetection(coco_val_2017_directory,coco_instances_val_2017_json,transform=tv.transforms.Compose([tv.transforms.Resize((args.input_size, args.input_size)),tv.transforms.ToTensor()]))
+            print('Dataset loaded')
+            
+            #model
+            state = torch.load('./ASL/models_local/MS_COCO_TResNet_xl_640_88.4.pth', map_location='cpu')
+            classes_list = np.array(list(state['idx_to_class'].values()))
+            args.num_classes = state['num_classes']
+            model = create_model(args).cuda()
+            model.load_state_dict(state['model'], strict=True)
+            model.eval()
+            print('Model Loaded')
+            corr = get_correspondence(classes_list,dataset.coco.cats)
 
-        scores, labels = dataset_precomputed.tensors
-        example_fdr_table, example_size_table = get_example_fdr_and_size_tables(scores, labels, lambdas_example_table)
-        print(f'Total samples: {scores.shape[0]}')
-        m = scores.shape[1]
-        
-        local_df_list = []
-        for i in tqdm(range(num_trials)):
-            fdr, sizes, lhat = trial_precomputed(example_fdr_table, example_size_table, lambdas_example_table, alpha, delta, num_lam, num_calib, m)
-            dict_local = {"$\\hat{\\lambda}$": lhat,
-                            "FDR": fdr,
-                            "sizes": [sizes],
-                            "alpha": alpha,
-                            "delta": delta
-                         }
-            df_local = pd.DataFrame(dict_local)
-            local_df_list = local_df_list + [df_local]
-        df = pd.concat(local_df_list, axis=0, ignore_index=True)
-        df.to_pickle(fname)
-    df_list = df_list + [df]
-    avg_lam = df_list[0]['$\\hat{\\lambda}$'].mean()
-    print(f"Average lambda: {avg_lam}")
+            # get dataset
+            dataset_fname = '../.cache/coco_val.pkl'
+            if os.path.exists(dataset_fname):
+                dataset_precomputed = pkl.load(open(dataset_fname,'rb'))
+                print(f"Precomputed dataset loaded. Size: {len(dataset_precomputed)}")
+            else:
+                dataset_precomputed = get_scores_targets(model, torch.utils.data.DataLoader(dataset,batch_size=1,shuffle=True), corr)
+                pkl.dump(dataset_precomputed,open(dataset_fname,'wb'),protocol=pkl.HIGHEST_PROTOCOL)
+
+            scores, labels = dataset_precomputed.tensors
+            example_fdr_table, example_size_table = get_example_fdr_and_size_tables(scores, labels, lambdas_example_table)
+            print(f'Total samples: {scores.shape[0]}')
+            m = scores.shape[1]
+            
+            local_df_list = []
+            for i in tqdm(range(num_trials)):
+                fdr, sizes, lhat = trial_precomputed(rejection_region_function, rejection_region_name, example_fdr_table, example_size_table, lambdas_example_table, alpha, delta, num_lam, num_calib, m)
+                if lhat < 0:
+                    continue
+                dict_local = {"$\\hat{\\lambda}$": lhat,
+                                "FDR": fdr,
+                                "sizes": [sizes],
+                                "alpha": alpha,
+                                "delta": delta,
+                                "region name": rejection_region_name
+                             }
+                df_local = pd.DataFrame(dict_local)
+                local_df_list = local_df_list + [df_local]
+            if len(local_df_list) == 0:
+                continue
+            df = pd.concat(local_df_list, axis=0, ignore_index=True)
+            df.to_pickle(fname)
+        df_list = df_list + [df]
 
     plot_histograms(df_list,alpha,delta)
 
@@ -187,14 +202,17 @@ if __name__ == "__main__":
         coco_val_2017_directory = '../data/val2017'
         coco_instances_val_2017_json = '../data/annotations_trainval2017/instances_val2017.json'
 
-        alphas = [0.2,0.5]
-        deltas = [0.1,0.1]
+        alphas = [0.05,0.1,0.2,0.5]
+        deltas = [0.1,0.1,0.1,0.1]
         params = list(zip(alphas,deltas))
         num_lam = 1500 
         num_calib = 4000 
-        num_trials = 1000 
+        num_trials = 5 
         lambdas_example_table = np.linspace(0,1,num_lam)
+
+        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, uniform_region)
+        rejection_region_names = ('RWMB', 'HBBonferroni', 'Bardenet (Uniform)')
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
-            experiment(alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json)
+            experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json)
