@@ -114,7 +114,7 @@ def bonferroni_search(p_values,delta,downsample_factor):
         _idx = idx
         while _idx < N and p_values[_idx] < delta/N_coarse:
             R.update({_idx})
-            _idx = _idx + 1
+            _idx = _idx - 1
     return np.array(list(R))
 
 """
