@@ -189,6 +189,8 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
             df = pd.concat(local_df_list, axis=0, ignore_index=True)
             df.to_pickle(fname)
         df_list = df_list + [df]
+        lambda_average = df["$\\hat{\\lambda}$"].mean()
+        print(f"alpha:{alpha}, method:{rejection_region_name}, lambda_average:{lambda_average}")
 
     plot_histograms(df_list,alpha,delta)
 
