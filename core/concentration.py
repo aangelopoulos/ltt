@@ -101,6 +101,37 @@ def bonferroni_CLT(loss_table,lambdas,alpha,delta):
     return bonferroni(p_values,delta)
 
 """
+    BONFERRONI SEARCH MASTER ALGORITHM
+"""
+def bonferroni_search(p_values,delta,downsample_factor):
+    N = p_values.shape[0]
+    N_coarse = int(p_values.shape[0]/downsample_factor)
+    # Downsample, making sure to include the endpoints.
+    coarse_indexes = set(range(0,N,downsample_factor))
+    coarse_indexes.update({0,N-1})
+    R = set() 
+    for idx in coarse_indexes:
+        _idx = idx
+        while _idx < N and p_values[_idx] < delta/N_coarse:
+            R.update({_idx})
+            _idx = _idx + 1
+    return np.array(list(R))
+
+"""
+    BONFERRONI SEARCH SPECIALIZATIONS 
+"""
+def bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor):
+    n = loss_table.shape[0]
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
+    return bonferroni_search(p_values,delta,downsample_factor)
+
+def bonferroni_search_CLT(loss_table,lambdas,alpha,delta,downsample_factor):
+    t_values = np.sqrt(loss_table.shape[0])*(alpha - loss_table.mean(axis=0))/loss_table.std(axis=0) 
+    p_values = 1-stats.norm.cdf(t_values)
+    return bonferroni_search(p_values,delta,downsample_factor)
+
+"""
     NAIVE ALGORITHM
 """
 # Just select the set of lambdas where the 1-delta quantile of the loss table is below alpha.
@@ -141,7 +172,7 @@ def AR_Noise_Process(signal,alpha,n,N,corr):
     PLOT SIMULATION AND REJECTION REGIONS
 """
 
-def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
+def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsample_factor):
     # Create a signal that dips below alpha at some points 
     signal = np.concatenate((np.linspace(peak,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,peak,int(np.ceil(N/2)))),axis=0)
     loss_table = AR_Noise_Process(signal,alpha,n,N,corr)
@@ -152,6 +183,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
     R_RW_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
     R_RW_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
     R_RW_CLT = romano_wolf_CLT(loss_table,lambdas,alpha,delta)
+    R_bonferroni_search_HB = bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor)
     R_bonferroni_HB = bonferroni_HB(loss_table,lambdas,alpha,delta)
     R_bonferroni_CLT = bonferroni_CLT(loss_table,lambdas,alpha,delta)
     R_uniform = uniform_region(loss_table,lambdas,alpha,delta,m)
@@ -161,6 +193,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
             R_RW_bootstrap, 
             R_RW_HB, 
             R_RW_CLT, 
+            R_bonferroni_search_HB,
             R_bonferroni_HB,
             R_bonferroni_CLT,
             R_uniform)
@@ -170,6 +203,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
                 r'RWMB Rejections',
                 r'RWHB Rejections',
                 r'RWCLT Rejections',
+                r'BonferroniSearchHB Rejections',
                 r'BonferroniHB Rejections',
                 r'BonferroniCLT Rejections',
                 r'Bardenet Rejections (uniform)')
@@ -177,6 +211,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
     colors = ('#C18268',
               '#5F9A84',
               '#B4926D',
+              '#C1DAFF',
               '#DAFFC1',
               '#FFDAC1',
               '#4A7087',
@@ -199,7 +234,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak):
     sns.despine(top=True,right=True)
 
 if __name__ == "__main__":
-    n = 5000
+    n = 4000
     N = 1000
     m = 1000
     delta = 0.1
@@ -207,12 +242,13 @@ if __name__ == "__main__":
     # Define the correlation of the AR noise process
     corrs = (0.99, 0.95, 0.90)
     peaks = (0.8,0.4)
+    downsample_factor = 10
 
     for peak in peaks:
         fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4,len(corrs)*4))
         for i in reversed(range(len(alphas))):
             for j in reversed(range(len(corrs))):
-                plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak)
+                plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
                 if i == 0:
                     axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=20)
                 if j == 0:

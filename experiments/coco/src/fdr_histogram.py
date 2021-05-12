@@ -17,7 +17,7 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import romano_wolf_multiplier_bootstrap, bonferroni_HB, uniform_region
+from core.concentration import romano_wolf_multiplier_bootstrap, bonferroni_HB, bonferroni_search_HB, uniform_region
 from core.uniform_concentration import required_fdp
 import pdb
 
@@ -207,11 +207,15 @@ if __name__ == "__main__":
         params = list(zip(alphas,deltas))
         num_lam = 1500 
         num_calib = 4000 
-        num_trials = 5 
+        num_trials = 200 
         lambdas_example_table = np.linspace(0,1,num_lam)
 
-        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, uniform_region)
-        rejection_region_names = ('RWMB', 'HBBonferroni', 'Bardenet (Uniform)')
+        # local function to preserve template
+        def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
+            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
+
+        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, uniform_region)
+        rejection_region_names = ('RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Bardenet (Uniform)')
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
