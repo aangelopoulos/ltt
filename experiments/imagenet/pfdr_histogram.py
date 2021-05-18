@@ -52,7 +52,7 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_calib, maxiter):
 
     starting_index = ((1-calib_accuracy)/calib_abstention_freq < alpha).nonzero(as_tuple=True)[0][0]
 
-    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(starting_index, num_calib)) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, num_calib) ] )
 
     if ((pfdr_pluses > alpha).float().sum() == 0):
         valid_set_index = 0

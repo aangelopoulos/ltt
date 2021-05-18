@@ -167,7 +167,6 @@ def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
         return np.load( fpath )
     else:
         print(f"Computing eta_star for {n}, {alpha:.2f}, {delta:.2f}")
-        pdb.set_trace()
         eta_grid = np.logspace(-5,1,20)
         best_x = 0
         eta_star = 1
