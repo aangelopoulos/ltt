@@ -83,6 +83,7 @@ def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
 """
 def bonferroni(p_values,delta):
     rejections, _, _, _ = multipletests(p_values,delta,method='holm',is_sorted=False,returnsorted=False)
+    pdb.set_trace()
     R = np.nonzero(rejections)[0]
     return R 
 

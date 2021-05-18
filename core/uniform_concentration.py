@@ -125,7 +125,7 @@ def nu_plus(n, m, nu, delta, maxiter, num_grid_points):
     eta_star = get_eta_star_upper(n, m, nu, delta, 20, num_grid_points=num_grid_points)
     t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter, num_grid_points=num_grid_points)
     def _condition(nu_plus):
-        return nu - (nu_plus + t * np.sqrt(nu_plus + eta_star))
+        return nu - (nu_plus - t * np.sqrt(nu_plus + eta_star))
     try:
         nu_plus = brentq(_condition,-0.1,1.1,maxiter=maxiter)
         nu_plus = min(max(nu_plus,0),1)
@@ -150,7 +150,7 @@ def required_fdp(n, m, alpha, delta, maxiter, num_grid_points=None):
 
 def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
     nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
-    r_m = r_minus(n, m, frac_abstention, delta, maxiter,num_grid_points=num_grid_points)
+    r_m = r_minus(n, m, frac_abstention, delta, maxiter,num_grid_points)
     if nu_p <= 0 and r_m <= 0:
         return 0
     if nu_p > 0 and r_m <= 0:
@@ -161,12 +161,13 @@ def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=No
 def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
     alpha = np.round(alpha,2)
     delta = np.round(alpha,2)
-    fname = f'eta_star_{n}_{alpha}_{delta}'
+    fname = f'eta_star_{n}_{alpha:.2f}_{delta:.2f}'
     fpath = CACHE+fname+'.npy'
     if os.path.exists( fpath ):
         return np.load( fpath )
     else:
-        print(f"Computing eta_star for {n}, {alpha}, {delta}")
+        print(f"Computing eta_star for {n}, {alpha:.2f}, {delta:.2f}")
+        pdb.set_trace()
         eta_grid = np.logspace(-5,1,20)
         best_x = 0
         eta_star = 1

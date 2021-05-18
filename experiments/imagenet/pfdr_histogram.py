@@ -14,7 +14,7 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import *
+from core.uniform_concentration import *
 import pdb
 
 def plot_histograms(df_list,alpha,delta):
@@ -54,7 +54,10 @@ def trial_precomputed(top_scores, corrects, alpha, delta, num_calib, maxiter):
 
     pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, num_calib) ] )
 
-    valid_set_index = max((pfdr_pluses > alpha).nonzero(as_tuple=True)[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
+    if ((pfdr_pluses > alpha).float().sum() == 0):
+        valid_set_index = 0
+    else:
+        valid_set_index = max((pfdr_pluses > alpha).nonzero(as_tuple=True)[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
     
     lhat = calib_scores[valid_set_index]
 
@@ -101,7 +104,6 @@ def experiment(alpha,delta,num_calib,num_trials,maxiter,imagenet_val_dir):
             df.to_pickle(fname)
 
     df_list = df_list + [df]
-    pdb.set_trace()
     plot_histograms(df_list, alpha, delta)
 
 def platt_logits(calib_dataset, max_iters=10, lr=0.01, epsilon=0.01):
@@ -136,7 +138,7 @@ if __name__ == "__main__":
     deltas = [0.1,0.1]
     params = list(zip(alphas,deltas))
     maxiter = int(1e3)
-    num_trials = 100
+    num_trials = 5 
     num_calib = 30000
     
     for alpha, delta in params:
