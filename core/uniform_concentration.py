@@ -173,12 +173,12 @@ def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
         for eta in eta_grid:
             try:
                 t = normalized_vapnik_tail_upper(n, m, delta, eta, 20, num_grid_points=num_grid_points)
+                x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
+                if x >= best_x:
+                    best_x = x
+                    eta_star = eta
             except:
                 pass
-            x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
-            if x >= best_x:
-                best_x = x
-                eta_star = eta
         os.makedirs(CACHE, exist_ok=True)
         np.save( fpath, eta_star )
 
