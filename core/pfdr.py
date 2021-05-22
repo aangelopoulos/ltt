@@ -11,7 +11,7 @@ import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
-from core.uniform_concentration import pfdr_ucb
+from core.uniform_concentration import nu_plus, r_minus 
 from core.concentration import * 
 from core.bounds import HB_mu_plus, HB_mu_minus
 from tqdm import tqdm
@@ -75,11 +75,20 @@ def pfdr_HB(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter
     R = np.array([valid_set_index,])
     return R
 
+def pfdr_ucb_uniform(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
+    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
+    r_m = r_minus(n, m, 1-frac_abstention, delta, maxiter,num_grid_points)
+    if r_m <= 0 and nu_p > 0:
+        return np.Inf 
+    if nu_p <= 0:
+        return 0 
+    return nu_p/r_m
+
 def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=1000):
     num_calib = score_vector.shape[0]
     calib_accuracy = [ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ]
     calib_abstention_freq = [ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ]
-    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(len(calib_accuracy))) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb_uniform(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in tqdm(range(len(calib_accuracy))) ] )
     R = np.nonzero(pfdr_pluses < alpha)[0] 
     return R
 
@@ -89,7 +98,7 @@ def pfdr_uniform_2(score_vector, correct_vector, lambdas, alpha, delta, m=1000, 
     calib_abstention_freq = torch.tensor([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
     starting_index = ((1-calib_accuracy)/(1-calib_abstention_freq) < alpha).nonzero()[0][0]
 
-    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb_uniform(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
 
     if ((pfdr_pluses > alpha).float().sum() == 0):
         valid_set_index = 0

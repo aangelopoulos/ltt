@@ -141,15 +141,6 @@ def r_minus(n, m, r, delta, maxiter, num_grid_points):
     r_minus = r - t2*np.sqrt(max(r+eta_star, 0))
     return r_minus 
 
-def pfdr_ucb(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
-    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
-    r_m = r_minus(n, m, 1-frac_abstention, delta, maxiter,num_grid_points)
-    if r_m <= 0 and nu_p > 0:
-        return np.Inf 
-    if nu_p <= 0:
-        return 0 
-    return nu_p/r_m
-
 # Get optimal eta for upper tail
 def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
     alpha = np.round(alpha,2)
