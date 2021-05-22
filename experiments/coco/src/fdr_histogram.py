@@ -17,8 +17,7 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import romano_wolf_multiplier_bootstrap, bonferroni_HB, bonferroni_search_HB, uniform_region
-from core.uniform_concentration import required_fdp
+from core.concentration import romano_wolf_multiplier_bootstrap, romano_wolf_HB, bonferroni_HB, bonferroni_search_HB, uniform_region
 import pdb
 
 parser = argparse.ArgumentParser(description='ASL MS-COCO predictor')
@@ -137,6 +136,7 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
         rejection_region_name = rejection_region_names[idx]
+        print(rejection_region_name)
         fname = f'../.cache/{alpha}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
         df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","FDR","sizes","alpha","delta","region name"])
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         params = list(zip(alphas,deltas))
         num_lam = 1500 
         num_calib = 4000 
-        num_trials = 200 
+        num_trials = 100 
         lambdas_example_table = np.linspace(0,1,num_lam)
 
         # local function to preserve template

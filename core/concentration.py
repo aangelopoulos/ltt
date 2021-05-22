@@ -11,7 +11,7 @@ import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
-from core.uniform_concentration import required_fdp
+from core.uniform_concentration import nu_plus
 from core.pfdr import *
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
@@ -62,7 +62,7 @@ def romano_wolf_CLT(loss_table,lambdas,alpha,delta):
         return delta/len(S)
     return romano_wolf(p_values,subset_scoring_function)
 
-def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=500):
+def romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta,B=100):
     n = loss_table.shape[0]
     N = loss_table.shape[1]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
@@ -142,12 +142,23 @@ def naive_rejection_region(loss_table,lambdas,alpha,delta):
     return R
 
 """
-    UNIFORM REGION 
+    UNIFORM REGION (only returns endpoints) 
 """
 def uniform_region(loss_table,lambdas,alpha,delta,m):
-    thresh = required_fdp(loss_table.shape[0], m, alpha, delta, maxiter=100,num_grid_points=lambdas.shape[0])
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda (FDP)
-    R = np.nonzero(r_hats < thresh)[0]
+    starting_index = (r_hats < alpha).nonzero()[0][0]
+    ending_index = (r_hats < alpha).nonzero()[0][-1]
+    R = np.array([])
+    sig_figs = int(np.ceil(np.log10(lambdas.shape[0])))
+    for i in range(starting_index,ending_index):
+        rounded_empirical_risk = np.ceil(r_hats[i] * 10**sig_figs)/(10**sig_figs)#To make more efficient caching
+        if nu_plus(loss_table.shape[0], m, rounded_empirical_risk, delta, 20, lambdas.shape[0]) < alpha:
+            break
+    for j in reversed(range(i,ending_index)):
+        rounded_empirical_risk = np.ceil(r_hats[j] * 10**sig_figs)/(10**sig_figs)#To make more efficient caching
+        if nu_plus(loss_table.shape[0], m, np.round(r_hats[j],sig_figs), delta, 20, lambdas.shape[0]) < alpha:
+            break
+    R = np.array([i,j]) 
     return R
 
 """

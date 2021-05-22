@@ -11,8 +11,9 @@ import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
-from core.uniform_concentration import required_fdp, pfdr_ucb
+from core.uniform_concentration import pfdr_ucb
 from core.concentration import * 
+from core.bounds import HB_mu_plus, HB_mu_minus
 from tqdm import tqdm
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
@@ -49,6 +50,31 @@ def pfdr_bonferroni_HB(score_vector,correct_vector,lambdas,alpha,delta):
     p_values = np.nan_to_num(p_values, nan=1.0)
     return bonferroni(p_values,delta)
 
+def pfdr_ucb_HB(num_calib, accuracy, frac_abstention, delta, maxiter):
+    nu_p = HB_mu_plus(1-accuracy, num_calib, delta, maxiter)
+    r_m = HB_mu_minus(1-frac_abstention, num_calib, delta, maxiter)
+    if r_m <= 0 and nu_p > 0:
+        return np.Inf 
+    if nu_p <= 0:
+        return 0 
+    return nu_p/r_m
+
+def pfdr_HB(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter=1000):
+    num_calib = score_vector.shape[0]
+    calib_accuracy = torch.tensor([ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ])
+    calib_abstention_freq = torch.tensor([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
+    starting_index = ((1-calib_accuracy)/(1-calib_abstention_freq) < alpha).nonzero()[0][0]
+
+    pfdr_pluses = torch.tensor( [ pfdr_ucb_HB(num_calib, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
+
+    if ((pfdr_pluses > alpha).float().sum() == 0):
+        valid_set_index = 0
+    else:
+        valid_set_index = max((pfdr_pluses > alpha).nonzero()[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
+    
+    R = np.array([valid_set_index,])
+    return R
+
 def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=1000):
     num_calib = score_vector.shape[0]
     calib_accuracy = [ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ]
@@ -61,7 +87,7 @@ def pfdr_uniform_2(score_vector, correct_vector, lambdas, alpha, delta, m=1000, 
     num_calib = score_vector.shape[0]
     calib_accuracy = torch.tensor([ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ])
     calib_abstention_freq = torch.tensor([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
-    starting_index = ((1-calib_accuracy)/calib_abstention_freq < alpha).nonzero()[0][0]
+    starting_index = ((1-calib_accuracy)/(1-calib_abstention_freq) < alpha).nonzero()[0][0]
 
     pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
 

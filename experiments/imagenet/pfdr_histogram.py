@@ -23,6 +23,8 @@ def plot_histograms(df_list,alpha,delta):
 
     for i in range(len(df_list)):
         df = df_list[i]
+        if df.pFDP.sum() <= 1e-3:
+            continue
         region_name = df["region name"][0] 
         axs[0].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True)
         axs[1].hist(np.array(df['mean size'].tolist()), None, alpha=0.7, density=True, label=region_name)
@@ -71,10 +73,8 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    #rejection_region_functions = (pfdr_uniform_2,) 
-    #rejection_region_names = ("Bardenet (Uniform)",)
-    rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform_2) 
-    rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB","Bardenet (Uniform)")
+    rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform_2,pfdr_HB) 
+    rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB","Bardenet (Uniform)", "HB Without Trick")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
