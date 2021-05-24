@@ -76,10 +76,8 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB) 
-    rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB")
-    #rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform_notrick,pfdr_HB) 
-    #rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB","Bardenet (Uniform) Without Trick", "HB Without Trick")
+    rejection_region_functions = (pfdr_romano_wolf_multiplier_bootstrap,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB) 
+    rejection_region_names = ("RWMB","BonferroniHB","BonferroniSearchHB")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
@@ -153,7 +151,7 @@ if __name__ == "__main__":
     deltas = [0.1,0.1,0.1]
     params = list(zip(alphas,deltas))
     maxiter = int(1e3)
-    num_trials = 5 
+    num_trials = 100 
     num_calib = 30000
     lambdas = np.linspace(0,1,1000)
     

@@ -17,18 +17,57 @@ from core.bounds import HB_mu_plus, HB_mu_minus
 from tqdm import tqdm
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
-"""
-    RW SPECIALIZATIONS
-"""
-# correct_vector_i = 1(top class is correct on example i)
-# score_vector_i = score of top class for example i
-def romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
+def get_nus_rs_n(score_vector, correct_vector, lambdas):
+    try:
+        score_vector = score_vector.numpy()
+        correct_vector = correct_vector.numpy()
+    except:
+        # already numpy
+        pass
     n = score_vector.shape[0]
-    nus = np.array([1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas])
+    nus = np.array([(1-correct_vector)[score_vector > lam].astype(float).sum()/n for lam in lambdas])
     nus = np.nan_to_num(nus)
     rs = np.array([(score_vector > lam).astype(float).mean() for lam in lambdas])
     rs = np.nan_to_num(rs)
-    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
+    return nus, rs, n
+
+def pfdr_loss_table(score_vector, correct_vector, lambdas, alpha):
+    n = score_vector.shape[0]
+    N = lambdas.shape[0]
+    loss_table = np.zeros((n,N))
+    for j in range(N):
+        predict = score_vector > lambdas[j]
+        c = correct_vector
+        loss_table[:,j] = (1-c)*predict - alpha * predict + alpha 
+    return loss_table
+
+"""
+    RW SPECIALIZATIONS
+"""
+
+def pfdr_romano_wolf_multiplier_bootstrap(score_vector, correct_vector, lambdas, alpha, delta, B=100): 
+    n = score_vector.shape[0]
+    N = lambdas.shape[0]
+    loss_table = pfdr_loss_table(score_vector, correct_vector, lambdas, alpha)
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
+    z_table = loss_table - loss_table.mean(axis=0)[np.newaxis,:] # Broadcast so Z_{i,j}=l_{i,j}-mean_i(l_{i,j})
+    es = np.random.random(size=(n,B))
+    cs = np.zeros((B,N))
+    # Bootstrapping
+    for b in range(B):
+        cs[b] = np.mean(z_table * es[:,b:b+1],axis=0)
+    def subset_scoring_function(S):
+        idx = np.array(list(S))
+        subset = cs[:,idx]
+        maxes = np.max(subset,axis=1)
+        return -np.quantile(maxes,1-delta,interpolation='higher') # Weird negative due to flipped sign in romano-wolf algorithm 
+    return romano_wolf(-(alpha-r_hats),subset_scoring_function)
+
+# correct_vector_i = 1(top class is correct on example i)
+# score_vector_i = score of top class for example i
+def pfdr_romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
+    r_hats = nus - alpha*rs + alpha
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     def subset_scoring_function(S):
@@ -43,19 +82,15 @@ def romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
 # correct_vector_i = 1(top class is correct on example i)
 # score_vector_i = score of top class for example i
 def pfdr_bonferroni_HB(score_vector,correct_vector,lambdas,alpha,delta):
-    n = correct_vector.shape[0]
-    nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
-    nus = np.nan_to_num(nus)
-    rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
-    rs = np.nan_to_num(rs)
-    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
+    r_hats = nus-alpha*rs+alpha
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     return bonferroni(p_values,delta)
 
-def pfdr_ucb_HB(num_calib, accuracy, frac_abstention, delta, maxiter):
-    nu_p = HB_mu_plus(1-accuracy, num_calib, delta, maxiter)
-    r_m = HB_mu_minus(1-frac_abstention, num_calib, delta, maxiter)
+def pfdr_ucb_HB(n, nu, r, delta, maxiter):
+    nu_p = HB_mu_plus(nu, n, delta, maxiter)
+    r_m = HB_mu_minus(r, n, delta, maxiter)
     if r_m <= 0 and nu_p > 0:
         return np.Inf 
     if nu_p <= 0:
@@ -63,12 +98,10 @@ def pfdr_ucb_HB(num_calib, accuracy, frac_abstention, delta, maxiter):
     return nu_p/r_m
 
 def pfdr_HB(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter=1000):
-    num_calib = score_vector.shape[0]
-    calib_accuracy = torch.tensor([ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ])
-    calib_abstention_freq = torch.tensor([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
-    starting_index = ((1-calib_accuracy)/(1-calib_abstention_freq) < alpha).nonzero()[0][0]
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
+    starting_index = (nus/rs < alpha).nonzero()[0][0]
 
-    pfdr_pluses = torch.tensor( [ pfdr_ucb_HB(num_calib, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb_HB(n, nus[i], rs[i], delta, maxiter) for i in range(starting_index, calib_nu.shape[0]) ] )
 
     if ((pfdr_pluses > alpha).float().sum() == 0):
         valid_set_index = 0
@@ -79,24 +112,20 @@ def pfdr_HB(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter
     return R
 
 def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=1000,num_grid_points=None):
-    num_calib = score_vector.shape[0]
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
     N = lambdas.shape[0]
-    accuracy = np.array([ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ])
-    frac_abstention = np.array([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
-    nu_arr = 1-accuracy
-    r_arr = 1-frac_abstention
-    s_arr = nu_arr - alpha * r_arr + alpha
+    s_arr = nus - alpha * rs + alpha
     # subset only to search the ones with low enough s
     starting_index = (s_arr < alpha).nonzero()[0][0]
     ending_index = (s_arr < alpha).nonzero()[0][-1]
 
-    upper_bounds_arr = np.array([ nu_plus(num_calib, m, s, delta, maxiter, num_grid_points) for s in s_arr[starting_index:min((ending_index+1),N)] ])
+    upper_bounds_arr = np.array([ nu_plus(n, m, s, delta, maxiter, num_grid_points) for s in s_arr[starting_index:min((ending_index+1),N)] ])
     R = np.nonzero(upper_bounds_arr < alpha)[0] 
     return R
 
-def pfdr_ucb_uniform_notrick(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
-    nu_p = nu_plus(n, m, 1-accuracy, delta, maxiter, num_grid_points)
-    r_m = r_minus(n, m, 1-frac_abstention, delta, maxiter,num_grid_points)
+def pfdr_ucb_uniform_notrick(n, m, nu, r, delta, maxiter, num_grid_points=None):
+    nu_p = nu_plus(n, m, nu, delta, maxiter, num_grid_points)
+    r_m = r_minus(n, m, r, delta, maxiter,num_grid_points)
     if r_m <= 0 and nu_p > 0:
         return np.Inf 
     if nu_p <= 0:
@@ -104,12 +133,10 @@ def pfdr_ucb_uniform_notrick(n, m, accuracy, frac_abstention, delta, maxiter, nu
     return nu_p/r_m
 
 def pfdr_uniform_notrick(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter=1000):
-    num_calib = score_vector.shape[0]
-    calib_accuracy = torch.tensor([ correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas ])
-    calib_abstention_freq = torch.tensor([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
-    starting_index = ((1-calib_accuracy)/(1-calib_abstention_freq) < alpha).nonzero()[0][0]
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
+    starting_index = (nus/rs < alpha).nonzero()[0][0]
 
-    pfdr_pluses = torch.tensor( [ pfdr_ucb_uniform_notrick(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, calib_accuracy.shape[0]) ] )
+    pfdr_pluses = torch.tensor( [ pfdr_ucb_uniform_notrick(n, m, nus[i], rs[i], delta, maxiter) for i in range(starting_index, calib_nu.shape[0]) ] )
 
     if ((pfdr_pluses > alpha).float().sum() == 0):
         valid_set_index = 0
@@ -123,11 +150,7 @@ def pfdr_uniform_notrick(score_vector, correct_vector, lambdas, alpha, delta, m=
     BONFERRONI SEARCH SPECIALIZATIONS 
 """
 def pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta, downsample_factor=10):
-    n = correct_vector.shape[0]
-    nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
-    nus = np.nan_to_num(nus)
-    rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
-    rs = np.nan_to_num(rs)
+    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
     r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
