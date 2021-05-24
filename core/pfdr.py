@@ -26,9 +26,8 @@ def romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
     n = score_vector.shape[0]
     nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
     rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
-    r_hats = [ (nus[i]-alpha*rs[i]+alpha)/(1+alpha) for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda (adjusted)
-    alpha_adjusted = alpha/(1+alpha)
-    p_values = np.array([hb_p_value(r_hat,n,alpha_adjusted) for r_hat in r_hats])
+    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     def subset_scoring_function(S):
         return delta/len(S)
@@ -44,9 +43,8 @@ def pfdr_bonferroni_HB(score_vector,correct_vector,lambdas,alpha,delta):
     n = correct_vector.shape[0]
     nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
     rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
-    r_hats = [ (nus[i]-alpha*rs[i]+alpha)/(1+alpha) for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda (adjusted)
-    alpha_adjusted = alpha/(1+alpha)
-    p_values = np.array([hb_p_value(r_hat,n,alpha_adjusted) for r_hat in r_hats])
+    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     return bonferroni(p_values,delta)
 
@@ -82,14 +80,13 @@ def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=
     frac_abstention = np.array([ 1-(score_vector > lam).astype(float).mean() for lam in lambdas ])
     nu_arr = 1-accuracy
     r_arr = 1-frac_abstention
-    s_arr = (nu_arr - alpha * r_arr + alpha)/(1+alpha)
-    alpha_adjusted = alpha/(1+alpha)
+    s_arr = nu_arr - alpha * r_arr + alpha
     # subset only to search the ones with low enough s
-    starting_index = (s_arr < alpha_adjusted).nonzero()[0][0]
-    ending_index = (s_arr < alpha_adjusted).nonzero()[0][-1]
+    starting_index = (s_arr < alpha).nonzero()[0][0]
+    ending_index = (s_arr < alpha).nonzero()[0][-1]
 
     upper_bounds_arr = np.array([ nu_plus(num_calib, m, s, delta, maxiter, num_grid_points) for s in s_arr[starting_index:min((ending_index+1),N)] ])
-    R = np.nonzero(upper_bounds_arr < alpha_adjusted)[0] 
+    R = np.nonzero(upper_bounds_arr < alpha)[0] 
     return R
 
 def pfdr_ucb_uniform_notrick(n, m, accuracy, frac_abstention, delta, maxiter, num_grid_points=None):
@@ -124,9 +121,8 @@ def pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delt
     n = correct_vector.shape[0]
     nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
     rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
-    r_hats = [ (nus[i]-alpha*rs[i]+alpha)/(1+alpha) for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda (adjusted)
-    alpha_adjusted = alpha/(1+alpha)
-    p_values = np.array([hb_p_value(r_hat,n,alpha_adjusted) for r_hat in r_hats])
+    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     return bonferroni_search(p_values,delta,downsample_factor)
 

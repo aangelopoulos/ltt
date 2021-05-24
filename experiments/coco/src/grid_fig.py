@@ -22,7 +22,7 @@ parser.add_argument('--model_name',type=str,default='tresnet_xl')
 parser.add_argument('--input_size',type=int,default=640)
 parser.add_argument('--dataset_type',type=str,default='MS-COCO')
 parser.add_argument('--batch_size',type=int,default=64)
-parser.add_argument('--th',type=float,default=0.787)
+parser.add_argument('--th',type=float,default=0.6527)
 
 def random_example(dataset, model, scores_to_labels, corr, classes_list):
     i = random.randint(0,len(dataset)-1) 
@@ -87,7 +87,7 @@ def gridplot_imgs(imgs,est_labels,labels,rows,cols):
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.05,hspace=0.05)
-    plt.savefig('../outputs/grid_fig.pdf')
+    plt.savefig('../outputs/coco_grid_fig.pdf')
 
 if __name__ == "__main__":
     with torch.no_grad():

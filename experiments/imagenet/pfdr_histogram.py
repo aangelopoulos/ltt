@@ -153,7 +153,7 @@ if __name__ == "__main__":
     deltas = [0.1,0.1,0.1]
     params = list(zip(alphas,deltas))
     maxiter = int(1e3)
-    num_trials = 100 
+    num_trials = 5 
     num_calib = 30000
     lambdas = np.linspace(0,1,1000)
     
