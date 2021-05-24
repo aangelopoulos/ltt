@@ -24,13 +24,16 @@ CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 # score_vector_i = score of top class for example i
 def romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
     n = score_vector.shape[0]
-    nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
-    rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
+    nus = np.array([1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas])
+    nus = np.nan_to_num(nus)
+    rs = np.array([(score_vector > lam).astype(float).mean() for lam in lambdas])
+    rs = np.nan_to_num(rs)
     r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
     def subset_scoring_function(S):
         return delta/len(S)
+    #return np.nonzero(nus - alpha * rs + alpha < alpha)[0]
     return romano_wolf(p_values,subset_scoring_function)
 
 """
@@ -42,7 +45,9 @@ def romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
 def pfdr_bonferroni_HB(score_vector,correct_vector,lambdas,alpha,delta):
     n = correct_vector.shape[0]
     nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
+    nus = np.nan_to_num(nus)
     rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
+    rs = np.nan_to_num(rs)
     r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda 
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
@@ -120,7 +125,9 @@ def pfdr_uniform_notrick(score_vector, correct_vector, lambdas, alpha, delta, m=
 def pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta, downsample_factor=10):
     n = correct_vector.shape[0]
     nus = [1-correct_vector[score_vector > lam].astype(float).mean() for lam in lambdas]
+    nus = np.nan_to_num(nus)
     rs = [(score_vector > lam).astype(float).mean() for lam in lambdas]
+    rs = np.nan_to_num(rs)
     r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
