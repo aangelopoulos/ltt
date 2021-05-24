@@ -16,25 +16,28 @@ from utils import *
 import seaborn as sns
 from core.uniform_concentration import *
 from core.pfdr import *
+from lambda_vs_pfdr import get_lambdas_vs_pfdps_frac_predict
 import pdb
 
-def plot_histograms(df_list,alpha,delta):
+def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
+
+    axs[0].plot(lambdas,pfdps,color='k',linewidth=3,label='pFDP')
+    axs[0].plot(lambdas,frac_predict,color='g',linewidth=3,label='avg size')
 
     for i in range(len(df_list)):
         df = df_list[i]
         if df.pFDP.sum() <= 1e-3:
             continue
         region_name = df["region name"][0] 
-        axs[0].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True)
-        axs[1].hist(np.array(df['mean size'].tolist()), None, alpha=0.7, density=True, label=region_name)
+        axs[1].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True, label=region_name)
     
-    axs[0].set_xlabel('pFDP')
-    axs[0].locator_params(axis='x', nbins=4)
-    axs[0].set_ylabel('density')
-    axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
-    axs[1].set_xlabel('mean size')
+    axs[0].set_xlabel(r'$-\lambda$')
+    axs[0].legend()
+    axs[1].set_xlabel('pFDP')
     axs[1].locator_params(axis='x', nbins=4)
+    axs[1].set_ylabel('density')
+    axs[1].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
     axs[1].legend()
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
@@ -73,8 +76,10 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform_2,pfdr_HB) 
-    rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB","Bardenet (Uniform)", "HB Without Trick")
+    rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB) 
+    rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB")
+    #rejection_region_functions = (romano_wolf_HB,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform_notrick,pfdr_HB) 
+    #rejection_region_names = ("RWHB","BonferroniHB","BonferroniSearchHB","Bardenet (Uniform) Without Trick", "HB Without Trick")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
@@ -113,7 +118,8 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
                 df.to_pickle(fname)
 
         df_list = df_list + [df]
-    plot_histograms(df_list, alpha, delta)
+    pfdps, frac_predict = get_lambdas_vs_pfdps_frac_predict(lambdas,imagenet_val_dir)
+    plot_histograms(df_list, alpha, delta, pfdps, frac_predict, lambdas)
 
 def platt_logits(calib_dataset, max_iters=10, lr=0.01, epsilon=0.01):
     calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=1024, shuffle=False, pin_memory=True) 

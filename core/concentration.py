@@ -137,9 +137,7 @@ def bonferroni_search_CLT(loss_table,lambdas,alpha,delta,downsample_factor):
 """
 # Just select the set of lambdas where the 1-delta quantile of the loss table is below alpha.
 def naive_rejection_region(loss_table,lambdas,alpha,delta):
-    quantiles = np.quantile(loss_table,1-delta,axis=0,interpolation='higher') 
-    R = np.nonzero(quantiles < alpha)[0] 
-    return R
+    return np.array([np.nonzero(loss_table.mean(axis=0) < alpha)[0][0],np.nonzero(loss_table.mean(axis=0)<alpha)[0][-1]])
 
 """
     UNIFORM REGION (only returns endpoints) 
@@ -190,7 +188,6 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
     loss_table = AR_Noise_Process(signal,alpha,n,N,corr)
     lambdas = np.linspace(0,1,N)
     # Get rejection regions for different methods
-    R_widest = (np.nonzero(loss_table.mean(axis=0) < alpha)[0][0],np.nonzero(loss_table.mean(axis=0)<alpha)[0][-1])
     R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
     R_RW_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
     R_RW_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
@@ -200,8 +197,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
     R_bonferroni_CLT = bonferroni_CLT(loss_table,lambdas,alpha,delta)
     R_uniform = uniform_region(loss_table,lambdas,alpha,delta,m)
 
-    Rs = (R_widest, 
-            R_naive,
+    Rs = (R_naive, 
             R_RW_bootstrap, 
             R_RW_HB, 
             R_RW_CLT, 
@@ -211,7 +207,6 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
             R_uniform)
 
     labels = (r'Empirical risk < $\alpha$',
-                r'1-$\delta$ proportion of losses < $\alpha$',
                 r'RWMB Rejections',
                 r'RWHB Rejections',
                 r'RWCLT Rejections',
@@ -221,7 +216,6 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
                 r'Bardenet Rejections (uniform)')
 
     colors = ('#C18268',
-              '#5F9A84',
               '#B4926D',
               '#C1DAFF',
               '#DAFFC1',
