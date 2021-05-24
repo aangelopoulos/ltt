@@ -16,6 +16,7 @@ from tqdm import tqdm
 from utils import *
 import seaborn as sns
 from core.concentration import *
+from core.pfdr import *
 import pdb
 
 def grid_fig_plot(img_list,classes_list,alphas):
@@ -44,7 +45,7 @@ def grid_fig_plot(img_list,classes_list,alphas):
     plt.savefig('./outputs/pfdr_grid_fig.pdf')
 
 # r is the number of images to get
-def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, delta, num_calib, maxiter, transform):
+def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, delta, lambdas, num_calib, maxiter, transform):
     total=top_scores.shape[0]
     m=1000
     perm = torch.randperm(total)
@@ -57,16 +58,10 @@ def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, de
 
     calib_scores, indexes = calib_scores.sort()
     calib_corrects = calib_corrects[indexes] 
-    calib_accuracy = (calib_corrects.flip(dims=(0,)).cumsum(dim=0)/(torch.tensor(range(num_calib))+1)).flip(dims=(0,))
-    calib_abstention_freq = (torch.tensor(range(num_calib))+1).float().flip(dims=(0,))/num_calib
 
-    starting_index = ((1-calib_accuracy)/calib_abstention_freq < alpha).nonzero(as_tuple=True)[0][0]
-
-    pfdr_pluses = torch.tensor( [ pfdr_ucb(num_calib, m, calib_accuracy[i], calib_abstention_freq[i], delta, maxiter) for i in range(starting_index, num_calib) ] )
-
-    valid_set_index = max((pfdr_pluses > alpha).nonzero(as_tuple=True)[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
+    R = pfdr_bonferroni_search_HB(calib_scores.numpy(), calib_corrects.numpy(), lambdas, alpha, delta, downsample_factor=10)
     
-    lhat = calib_scores[valid_set_index]
+    lhat = lambdas[R.min()]
 
     val_predictions = val_scores > lhat
 
@@ -89,7 +84,7 @@ def get_images(r, images, classes_array, top_scores, labels, corrects, alpha, de
     
     return return_images, return_image_classes
 
-def experiment(alphas,delta,num_calib,maxiter,imagenet_val_dir):
+def experiment(alphas,delta,lambdas,num_calib,maxiter,imagenet_val_dir):
     fname_imgs = './.cache/imgs_for_grid.pkl'
     fname_classes = './.cache/classes_for_grid.pkl'
 
@@ -116,23 +111,23 @@ def experiment(alphas,delta,num_calib,maxiter,imagenet_val_dir):
         
         classes_array = get_imagenet_classes()
         T = platt_logits(dataset_precomputed)
-        
-        logits, labels = dataset_precomputed.tensors
-        top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
-        corrects = top_classes==labels
+        with torch.no_grad():
+            logits, labels = dataset_precomputed.tensors
+            top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
+            corrects = top_classes==labels
 
-        plot_rows_classes = [get_images(5, image_filenames, classes_array, top_scores, labels, corrects, alpha, delta, num_calib, maxiter, transform) for alpha in alphas]
+            plot_rows_classes = [get_images(5, image_filenames, classes_array, top_scores, labels, corrects, alpha, delta, lambdas, num_calib, maxiter, transform) for alpha in alphas]
 
-        img_list = [x[0] for x in plot_rows_classes]
-        classes_list = [ x[1] for x in plot_rows_classes ]
+            img_list = [x[0] for x in plot_rows_classes]
+            classes_list = [ x[1] for x in plot_rows_classes ]
 
-        filehandler = open(fname_imgs,"wb")
-        pickle.dump(img_list,filehandler)
-        filehandler.close()
+            filehandler = open(fname_imgs,"wb")
+            pickle.dump(img_list,filehandler)
+            filehandler.close()
 
-        filehandler = open(fname_classes,"wb")
-        pickle.dump(classes_list,filehandler)
-        filehandler.close()
+            filehandler = open(fname_classes,"wb")
+            pickle.dump(classes_list,filehandler)
+            filehandler.close()
 
     grid_fig_plot(img_list,classes_list,alphas)
 
@@ -166,7 +161,8 @@ if __name__ == "__main__":
 
     alphas = [0.05,0.1, 0.15]
     delta = 0.1
+    lambdas = np.linspace(0,1,1000)
     maxiter = int(1e3)
     num_calib = 30000
     
-    experiment(alphas,delta,num_calib,maxiter,imagenet_val_dir)
+    experiment(alphas,delta,lambdas,num_calib,maxiter,imagenet_val_dir)

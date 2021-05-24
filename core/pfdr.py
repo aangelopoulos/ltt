@@ -13,7 +13,7 @@ import pickle as pkl
 from utils import *
 from core.uniform_concentration import nu_plus, r_minus 
 from core.concentration import * 
-from core.bounds import HB_mu_plus, HB_mu_minus
+from core.bounds import hb_p_value, HB_mu_plus, HB_mu_minus
 from tqdm import tqdm
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 

@@ -11,8 +11,8 @@ import pdb
 from pathlib import Path
 import pickle as pkl
 from utils import *
+from core.bounds import hb_p_value
 from core.uniform_concentration import nu_plus
-from core.pfdr import *
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
 
 """
@@ -36,13 +36,6 @@ def romano_wolf(inputs,subset_scoring_function):
 """
     RW SPECIALIZATIONS
 """
-def hb_p_value(r_hat,n,alpha):
-    bentkus_p_value = np.e * stats.binom.cdf(np.ceil(n*r_hat),n,alpha)
-    def h1(y,mu):
-        return y * np.log(y/mu) + (1-y) * np.log((1-y)/(1-mu))
-    hoeffding_p_value = np.exp(-n*h1(min(r_hat,alpha),alpha))
-    return min(bentkus_p_value,hoeffding_p_value)
-
 # loss_table is an n x N table containing the loss of each point at value lambda
 # lambdas is the grid of lambdas
 # alpha is the desired loss
