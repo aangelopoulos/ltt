@@ -149,7 +149,10 @@ def uniform_region(loss_table,lambdas,alpha,delta,m):
         rounded_empirical_risk = np.ceil(r_hats[j] * 10**sig_figs)/(10**sig_figs)#To make more efficient caching
         if nu_plus(loss_table.shape[0], m, np.round(r_hats[j],sig_figs), delta, 20, lambdas.shape[0]) < alpha:
             break
-    R = np.array([i,j]) 
+    if i == j:
+        R = np.array([])
+    else:
+        R = np.array([i,j]) 
     return R
 
 """
@@ -192,8 +195,6 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
 
     Rs = (R_naive, 
             R_RW_bootstrap, 
-            R_RW_HB, 
-            R_RW_CLT, 
             R_bonferroni_search_HB,
             R_bonferroni_HB,
             R_bonferroni_CLT,
@@ -201,8 +202,6 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
 
     labels = (r'Empirical risk < $\alpha$',
                 r'RWMB Rejections',
-                r'RWHB Rejections',
-                r'RWCLT Rejections',
                 r'BonferroniSearchHB Rejections',
                 r'BonferroniHB Rejections',
                 r'BonferroniCLT Rejections',
@@ -212,9 +211,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
               '#B4926D',
               '#C1DAFF',
               '#DAFFC1',
-              '#FFDAC1',
               '#4A7087',
-              '#6D92B4',
               '#887D82')
     
     #ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
