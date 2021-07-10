@@ -17,7 +17,7 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import romano_wolf_multiplier_bootstrap, romano_wolf_HB, bonferroni_HB, bonferroni_search_HB, uniform_region
+from core.concentration import romano_wolf_multiplier_bootstrap, romano_wolf_HB, bonferroni_HB, bonferroni_search_HB, multiscale_bonferroni_search_HB, uniform_region
 import pdb
 
 parser = argparse.ArgumentParser(description='ASL MS-COCO predictor')
@@ -218,8 +218,12 @@ if __name__ == "__main__":
         def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
             return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
 
-        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, uniform_region)
-        rejection_region_names = ('RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Bardenet (Uniform)')
+        # local function to preserve template
+        def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
+            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
+
+        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
+        rejection_region_names = ('RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 

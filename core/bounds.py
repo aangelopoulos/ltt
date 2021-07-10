@@ -44,7 +44,11 @@ def HB_mu_minus(muhat, n, delta, maxiters):
         hoeffding_mu = hoeffding_minus(mu, muhat, n) 
         bentkus_mu = bentkus_minus(mu, muhat, n)
         return min(hoeffding_mu, bentkus_mu) - np.log(delta)
-    if _tailprob(1-1e-10) > 0:
-        return 1
+    pdb.set_trace()
+    if _tailprob(1e-10) > 0:
+        return 0
     else:
-        return brentq(_tailprob, muhat, 1-1e-10, maxiter=maxiters)
+        return brentq(_tailprob, 1e-10, muhat, maxiter=maxiters)
+
+if __name__ == "__main__":
+    print(HB_mu_minus(0.5, 100, 0.1, 1000))
