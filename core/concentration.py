@@ -94,17 +94,21 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     r_hats_coarse = small_table.mean(axis=0) 
     p_values_upper = np.array([hb_p_value(r_hat, num_coarse, alpha) for r_hat in r_hats_coarse])
     # TODO: Fix the second piece of the mask
-    lambda_binary_mask = (r_hats_coarse <= alpha).astype(float) * (r_hats_coarse > alpha/1.3).astype(float)
+    lambda_binary_mask = (r_hats_coarse <= alpha +0.05).astype(float) * (r_hats_coarse > alpha -0.05).astype(float)
     lambda_binary_mask[-1] = 1.0 # Always include the last one.
     argmin = np.argmin(r_hats_coarse)
     lambda_binary_mask[argmin] = 1.0 # Always include the minimal element as a safety
     #lambda_binary_mask = (p_values_upper < delta).astype(float)
+    print(f"Fraction of grid to search: {lambda_binary_mask.sum()/lambda_binary_mask.shape[0]}")
     lambda_indexes_to_search = np.nonzero(lambda_binary_mask)[0]
 
     indexes_fine_grid = method(big_table[:,lambda_indexes_to_search],lambdas[lambda_indexes_to_search],alpha,delta, *argv)
     if len(indexes_fine_grid) == 0:
+        print("ZERO SIZE\n\n\n")
+        pdb.set_trace()
         return np.array([0,])
-    return lambda_indexes_to_search[indexes_fine_grid] 
+    return_indexes = lambda_indexes_to_search[indexes_fine_grid]
+    return return_indexes 
 
 """
     BONFERRONI SPECIALIZATIONS 
@@ -150,7 +154,7 @@ def bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor):
     return bonferroni_search(p_values,delta,downsample_factor)
 
 def multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor,frac_data_coarse=None):
-    return multiscaleify(bonferroni_search_HB,frac_data_coarse,loss_table,lambdas,alpha,delta,downsample_factor)
+    return multiscaleify(bonferroni_search_HB,frac_data_coarse,loss_table,lambdas,alpha,delta,1)
 
 def bonferroni_search_CLT(loss_table,lambdas,alpha,delta,downsample_factor):
     t_values = np.sqrt(loss_table.shape[0])*(alpha - loss_table.mean(axis=0))/loss_table.std(axis=0) 

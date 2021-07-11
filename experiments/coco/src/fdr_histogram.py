@@ -112,7 +112,9 @@ def plot_histograms(df_list,alpha,delta):
 
     for i in range(len(df_list)):
         df = df_list[i]
-        axs[0].hist(np.array(df['FDR'].tolist()), None, alpha=0.7, density=True)
+        #fdrs = df['FDR'][df['FDR'] > alpha/2]
+        fdrs = df['FDR']
+        axs[0].hist(np.array(fdrs.tolist()), None, alpha=0.7, density=True)
 
         # Sizes will be 10 times as big as recall, since we pool it over runs.
         sizes = torch.cat(df['sizes'].tolist(),dim=0).numpy()
@@ -142,8 +144,6 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
         df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","FDR","sizes","alpha","delta","region name"])
         try:
             df = pd.read_pickle(fname)
-            lambda_average = df["$\\hat{\\lambda}$"].mean()
-            print(f"alpha:{alpha}, method:{rejection_region_name}, lambda_average:{lambda_average}")
         except FileNotFoundError:
             dataset = tv.datasets.CocoDetection(coco_val_2017_directory,coco_instances_val_2017_json,transform=tv.transforms.Compose([tv.transforms.Resize((args.input_size, args.input_size)),tv.transforms.ToTensor()]))
             print('Dataset loaded')
@@ -191,8 +191,8 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
             df = pd.concat(local_df_list, axis=0, ignore_index=True)
             df.to_pickle(fname)
         df_list = df_list + [df]
-        lambda_average = df["$\\hat{\\lambda}$"].mean()
-        print(f"alpha:{alpha}, method:{rejection_region_name}, lambda_average:{lambda_average}")
+        lambda_average = np.median(df["$\\hat{\\lambda}$"])
+        print(f"alpha:{alpha}, method:{rejection_region_name}, median lambda:{lambda_average}")
 
     plot_histograms(df_list,alpha,delta)
 
