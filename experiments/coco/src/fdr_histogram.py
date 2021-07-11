@@ -17,7 +17,7 @@ import pickle as pkl
 from tqdm import tqdm
 from utils import *
 import seaborn as sns
-from core.concentration import romano_wolf_multiplier_bootstrap, romano_wolf_HB, bonferroni_HB, bonferroni_search_HB, multiscale_bonferroni_search_HB, uniform_region
+from core.concentration import oracle_HB, romano_wolf_multiplier_bootstrap, romano_wolf_HB, bonferroni_HB, bonferroni_search_HB, multiscale_bonferroni_search_HB, uniform_region
 import pdb
 
 parser = argparse.ArgumentParser(description='ASL MS-COCO predictor')
@@ -83,6 +83,10 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
     np.random.set_state(rng_state)
     np.random.shuffle(example_size_table)
 
+    # Big lambda = Big loss
+    example_loss_table = example_loss_table[:,::-1]
+    example_size_table = example_size_table[:,::-1]
+
     calib_losses, val_losses = (example_loss_table[0:num_calib], example_loss_table[num_calib:])
     calib_sizes, val_sizes = (example_size_table[0:num_calib], example_size_table[num_calib:])
 
@@ -95,7 +99,7 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
     if len(R) == 0:
         lhat = -1
     else:
-        lhat = lambdas_example_table[min(R)]
+        lhat = lambdas_example_table[max(R)]
 
     fdrs = val_losses[:,np.argmax(lambdas_example_table == lhat)]
     sizes = val_sizes[:,np.argmax(lambdas_example_table == lhat)]
@@ -112,8 +116,8 @@ def plot_histograms(df_list,alpha,delta):
 
     for i in range(len(df_list)):
         df = df_list[i]
-        #fdrs = df['FDR'][df['FDR'] > alpha/2]
-        fdrs = df['FDR']
+        fdrs = df['FDR'][df['FDR'] > alpha/2]
+        #fdrs = df['FDR']
         axs[0].hist(np.array(fdrs.tolist()), None, alpha=0.7, density=True)
 
         # Sizes will be 10 times as big as recall, since we pool it over runs.
@@ -191,8 +195,9 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
             df = pd.concat(local_df_list, axis=0, ignore_index=True)
             df.to_pickle(fname)
         df_list = df_list + [df]
-        lambda_average = np.median(df["$\\hat{\\lambda}$"])
-        print(f"alpha:{alpha}, method:{rejection_region_name}, median lambda:{lambda_average}")
+        fdr_median = np.median(df["FDR"])
+        lambda_median = np.median(df["$\\hat{\\lambda}$"])
+        print(f"alpha:{alpha}, method:{rejection_region_name}, median fdr: {fdr_median}, median lambda:{lambda_median}")
 
     plot_histograms(df_list,alpha,delta)
 
@@ -222,8 +227,8 @@ if __name__ == "__main__":
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
             return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
 
-        rejection_region_functions = (romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
-        rejection_region_names = ('RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
+        rejection_region_functions = (oracle_HB, romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
+        rejection_region_names = ('Oracle HB', 'RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 

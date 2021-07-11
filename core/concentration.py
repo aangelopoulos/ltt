@@ -94,8 +94,8 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     r_hats_coarse = small_table.mean(axis=0) 
     p_values_upper = np.array([hb_p_value(r_hat, num_coarse, alpha) for r_hat in r_hats_coarse])
     # TODO: Fix the second piece of the mask
-    lambda_binary_mask = (r_hats_coarse <= alpha +0.05).astype(float) * (r_hats_coarse > alpha -0.05).astype(float)
-    lambda_binary_mask[-1] = 1.0 # Always include the last one.
+    lambda_binary_mask = (r_hats_coarse <= alpha + 0.05).astype(float) * (r_hats_coarse > alpha - 0.05).astype(float)
+    #lambda_binary_mask[-1] = 1.0 # Always include the last one.
     argmin = np.argmin(r_hats_coarse)
     lambda_binary_mask[argmin] = 1.0 # Always include the minimal element as a safety
     #lambda_binary_mask = (p_values_upper < delta).astype(float)
@@ -109,6 +109,16 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
         return np.array([0,])
     return_indexes = lambda_indexes_to_search[indexes_fine_grid]
     return return_indexes 
+
+"""
+    ORACLE METHOD
+"""
+
+def oracle_HB(loss_table,lambdas,alpha,delta):
+    n = loss_table.shape[0]
+    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
+    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
+    return bonferroni(p_values,delta*p_values.shape[0])
 
 """
     BONFERRONI SPECIALIZATIONS 
