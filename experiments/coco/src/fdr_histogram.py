@@ -220,6 +220,10 @@ if __name__ == "__main__":
         lambdas_example_table = np.linspace(0,1,num_lam)
 
         # local function to preserve template
+        def _bonferroni_search_HB_J1(loss_table,lambdas,alpha,delta):
+            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=1)
+
+        # local function to preserve template
         def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
             return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
 
@@ -227,8 +231,8 @@ if __name__ == "__main__":
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
             return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
 
-        rejection_region_functions = (oracle_HB, romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
-        rejection_region_names = ('Oracle HB', 'RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
+        rejection_region_functions = (oracle_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
+        rejection_region_names = ('Oracle HB', 'HBBonferroniSearchJ1', 'RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
