@@ -225,14 +225,14 @@ if __name__ == "__main__":
 
         # local function to preserve template
         def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
-            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
+            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=100)
 
         # local function to preserve template
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
-            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
+            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=100)
 
-        rejection_region_functions = (oracle_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap, bonferroni_HB, _bonferroni_search_HB, _multiscale_bonferroni_search_HB, uniform_region)
-        rejection_region_names = ('Oracle HB', 'HBBonferroniSearchJ1', 'RWMB', 'HBBonferroni', 'HBBonferroniSearch', 'Multiscale HBBS', 'Bardenet (Uniform)')
+        rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, oracle_HB, romano_wolf_multiplier_bootstrap )
+        rejection_region_names = ( 'Bardenet (Uniform)', 'HBBonferroni', 'HBBonferroniSearch', 'Oracle HB', 'RWMB' )
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
