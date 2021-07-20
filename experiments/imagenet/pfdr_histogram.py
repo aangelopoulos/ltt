@@ -76,8 +76,10 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    rejection_region_functions = (pfdr_romano_wolf_multiplier_bootstrap,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,pfdr_uniform) 
-    rejection_region_names = ("RWMB","BonferroniHB","BonferroniSearchHB","Uniform (Bardenet)")
+    def monotonic_pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta):
+        return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=1)
+    rejection_region_functions = (pfdr_romano_wolf_multiplier_bootstrap,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,monotonic_pfdr_bonferroni_search_HB,pfdr_uniform) 
+    rejection_region_names = ("RWMB","BonferroniHB","BonferroniSearchHB","J1","Uniform (Bardenet)")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]

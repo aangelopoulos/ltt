@@ -90,7 +90,7 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
     calib_losses, val_losses = (example_loss_table[0:num_calib], example_loss_table[num_calib:])
     calib_sizes, val_sizes = (example_size_table[0:num_calib], example_size_table[num_calib:])
 
-    if rejection_region_name == "Bardenet (Uniform)":
+    if rejection_region_name == "Bardenet_(Uniform)":
         R = rejection_region_function(calib_losses,lambdas_example_table,alpha,delta,m)
     else:
         R = rejection_region_function(calib_losses,lambdas_example_table,alpha,delta)
@@ -116,6 +116,8 @@ def plot_histograms(df_list,alpha,delta):
 
     for i in range(len(df_list)):
         df = df_list[i]
+        df['region name'][df['region name'] == 'HBBF_J1'] = "HBBonferroniSearch (J=1)"
+        df['region name'][df['region name'] == 'Bardenet_(Uniform)'] = "Bardenet (Uniform)"
         fdrs = df['FDR'][df['FDR'] > alpha/2]
         #fdrs = df['FDR']
         axs[0].hist(np.array(fdrs.tolist()), None, alpha=0.7, density=True)
@@ -143,7 +145,7 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
         rejection_region_function = rejection_region_functions[idx]
         rejection_region_name = rejection_region_names[idx]
         print(rejection_region_name)
-        fname = f'../.cache/{alpha}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
+        fname = f'../.cache/{alpha}_{delta}_{num_lam}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
         df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","FDR","sizes","alpha","delta","region name"])
         try:
@@ -211,7 +213,7 @@ if __name__ == "__main__":
         coco_val_2017_directory = '../data/val2017'
         coco_instances_val_2017_json = '../data/annotations_trainval2017/instances_val2017.json'
 
-        alphas = [0.05,0.1,0.2,0.5]
+        alphas = [0.5,0.2,0.1,0.05]
         deltas = [0.1,0.1,0.1,0.1]
         params = list(zip(alphas,deltas))
         num_lam = 1500 
@@ -221,18 +223,18 @@ if __name__ == "__main__":
 
         # local function to preserve template
         def _bonferroni_search_HB_J1(loss_table,lambdas,alpha,delta):
-            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=1)
+            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=loss_table.shape[1])
 
         # local function to preserve template
         def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
-            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=100)
+            return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
 
         # local function to preserve template
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
-            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=100)
+            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=1)
 
-        rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, oracle_HB, romano_wolf_multiplier_bootstrap )
-        rejection_region_names = ( 'Bardenet (Uniform)', 'HBBonferroni', 'HBBonferroniSearch', 'Oracle HB', 'RWMB' )
+        rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap )
+        rejection_region_names = ( 'Bardenet_(Uniform)', 'HBBonferroni', 'HBBonferroniSearch', 'HBBF_J1', 'RWMB' )
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 

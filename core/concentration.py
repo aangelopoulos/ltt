@@ -118,7 +118,8 @@ def oracle_HB(loss_table,lambdas,alpha,delta):
     n = loss_table.shape[0]
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
-    return bonferroni(p_values,delta*p_values.shape[0])
+    R = set(np.nonzero(p_values < delta)[0])
+    return R
 
 """
     BONFERRONI SPECIALIZATIONS 
@@ -149,9 +150,9 @@ def bonferroni_search(p_values,delta,downsample_factor):
     R = set() 
     for idx in coarse_indexes:
         _idx = idx
-        while _idx < N and p_values[_idx] < delta/N_coarse:
+        while _idx >= 0 and _idx < N and p_values[_idx] < delta/N_coarse:
             R.update({_idx})
-            _idx = _idx + 1
+            _idx = _idx + 1 
     return np.array(list(R))
 
 """
