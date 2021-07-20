@@ -29,7 +29,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
         df = df_list[i]
         if df.pFDP.sum() <= 1e-3:
             continue
-        region_name = df["region name"][0] 
+        region_name = df["region name"][0].replace('_', ' ')
         axs[1].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True, label=region_name)
     
     axs[0].set_xlabel(r'$-\lambda$')
@@ -77,9 +77,9 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
     def monotonic_pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta):
-        return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=1)
-    rejection_region_functions = (pfdr_romano_wolf_multiplier_bootstrap,pfdr_bonferroni_HB,pfdr_bonferroni_search_HB,monotonic_pfdr_bonferroni_search_HB,pfdr_uniform) 
-    rejection_region_names = ("RWMB","BonferroniHB","BonferroniSearchHB","J1","Uniform (Bardenet)")
+        return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=lambdas.shape[0])
+    rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB, pfdr_romano_wolf_multiplier_bootstrap) 
+    rejection_region_names = ("Uniform_(Bardenet)","HBBonferroni","HBBonferroniSearch","HBBonferroniSearch_J=1","RWMB")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
@@ -99,6 +99,9 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
             logits, labels = dataset_precomputed.tensors
             top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
             corrects = top_classes==labels
+
+            #if rejection_region_name == "HBBonferroniSearch_J=1":
+            #    pdb.set_trace()
 
             with torch.no_grad():
                 local_df_list = []

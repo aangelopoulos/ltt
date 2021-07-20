@@ -123,38 +123,18 @@ def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=
     R = np.nonzero(upper_bounds_arr < alpha)[0] + starting_index
     return R
 
-def pfdr_ucb_uniform_notrick(n, m, nu, r, delta, maxiter, num_grid_points=None):
-    nu_p = nu_plus(n, m, nu, delta, maxiter, num_grid_points)
-    r_m = r_minus(n, m, r, delta, maxiter,num_grid_points)
-    if r_m <= 0 and nu_p > 0:
-        return np.Inf 
-    if nu_p <= 0:
-        return 0 
-    return nu_p/r_m
-
-def pfdr_uniform_notrick(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter=1000):
-    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
-    starting_index = (nus/rs < alpha).nonzero()[0][0]
-
-    pfdr_pluses = torch.tensor( [ pfdr_ucb_uniform_notrick(n, m, nus[i], rs[i], delta, maxiter) for i in range(starting_index, calib_nu.shape[0]) ] )
-
-    if ((pfdr_pluses > alpha).float().sum() == 0):
-        valid_set_index = 0
-    else:
-        valid_set_index = max((pfdr_pluses > alpha).nonzero()[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
-    
-    R = np.array([valid_set_index,])
-    return R
-
 """
     BONFERRONI SEARCH SPECIALIZATIONS 
 """
 def pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta, downsample_factor=10):
     nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
+    N = lambdas.shape[0]
     r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda
     p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
     p_values = np.nan_to_num(p_values, nan=1.0)
-    return bonferroni_search(p_values,delta,downsample_factor)
+    p_values[-1] = 0.0
+    R = N-bonferroni_search(p_values[::-1],delta,downsample_factor)-1
+    return R 
 
 if __name__ == "__main__":
     n = 1000
