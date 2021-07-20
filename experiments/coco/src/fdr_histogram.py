@@ -199,7 +199,8 @@ def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num
         df_list = df_list + [df]
         fdr_median = np.median(df["FDR"])
         lambda_median = np.median(df["$\\hat{\\lambda}$"])
-        print(f"alpha:{alpha}, method:{rejection_region_name}, median fdr: {fdr_median}, median lambda:{lambda_median}")
+        fraction_violations = np.mean(df["FDR"] > alpha)
+        print(f"alpha:{alpha}, method:{rejection_region_name}, median fdr: {fdr_median}, median lambda:{lambda_median}, fraction violations: {fraction_violations}")
 
     plot_histograms(df_list,alpha,delta)
 
@@ -231,7 +232,7 @@ if __name__ == "__main__":
 
         # local function to preserve template
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
-            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=1)
+            return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=loss_table.shape[1])
 
         rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap )
         rejection_region_names = ( 'Bardenet_(Uniform)', 'HBBonferroni', 'HBBonferroniSearch', 'HBBF_J1', 'RWMB' )

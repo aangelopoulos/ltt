@@ -99,7 +99,7 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     argmin = np.argmin(r_hats_coarse)
     lambda_binary_mask[argmin] = 1.0 # Always include the minimal element as a safety
     #lambda_binary_mask = (p_values_upper < delta).astype(float)
-    print(f"Fraction of grid to search: {lambda_binary_mask.sum()/lambda_binary_mask.shape[0]}")
+    #print(f"Fraction of grid to search: {lambda_binary_mask.sum()/lambda_binary_mask.shape[0]}")
     lambda_indexes_to_search = np.nonzero(lambda_binary_mask)[0]
 
     indexes_fine_grid = method(big_table[:,lambda_indexes_to_search],lambdas[lambda_indexes_to_search],alpha,delta, *argv)
@@ -143,7 +143,7 @@ def bonferroni_CLT(loss_table,lambdas,alpha,delta):
 """
 def bonferroni_search(p_values,delta,downsample_factor):
     N = p_values.shape[0]
-    N_coarse = int(p_values.shape[0]/downsample_factor)
+    N_coarse = max(int(p_values.shape[0]/downsample_factor),1)
     # Downsample, making sure to include the endpoints.
     coarse_indexes = set(range(0,N,downsample_factor))
     coarse_indexes.update({0,N-1})
@@ -165,7 +165,7 @@ def bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor):
     return bonferroni_search(p_values,delta,downsample_factor)
 
 def multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor,frac_data_coarse=None):
-    return multiscaleify(bonferroni_search_HB,frac_data_coarse,loss_table,lambdas,alpha,delta,1)
+    return multiscaleify(bonferroni_search_HB,frac_data_coarse,loss_table,lambdas,alpha,delta,loss_table.shape[1])
 
 def bonferroni_search_CLT(loss_table,lambdas,alpha,delta,downsample_factor):
     t_values = np.sqrt(loss_table.shape[0])*(alpha - loss_table.mean(axis=0))/loss_table.std(axis=0) 
