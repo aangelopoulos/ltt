@@ -35,14 +35,16 @@ def testData(net1, criterion, CUDA_DEVICE, testloader10, testloader, nnName, dat
     N = 10000
     softmax_scores_in_distribution = torch.zeros((N-1000,10))
     ood_scores_in_distribution = torch.zeros((N-1000,))
+    labels_in_distribution = torch.zeros((N-1000,))
     softmax_scores_out_of_distribution = torch.zeros((N-1000,10))
-    ood_scores_out_of_distribution = torch.zeros((N,))
+    ood_scores_out_of_distribution = torch.zeros((N-1000,))
+    labels_out_of_distribution = torch.zeros((N-1000,))
     if dataName == "iSUN": N = 8925
     print("Processing in-distribution images")
 ########################################In-distribution###########################################
     for j, data in enumerate(testloader10):
         if j<1000: continue
-        images, _ = data
+        images, labels_in_distribution[j-1000] = data
         
         inputs = Variable(images.cuda(CUDA_DEVICE), requires_grad = True)
         outputs = net1(inputs)
@@ -99,7 +101,7 @@ def testData(net1, criterion, CUDA_DEVICE, testloader10, testloader, nnName, dat
 ###################################Out-of-Distributions#####################################
     for j, data in enumerate(testloader):
         if j<1000: continue
-        images, _ = data
+        images, labels_out_of_distribution[j-1000] = data
     
     
         inputs = Variable(images.cuda(CUDA_DEVICE), requires_grad = True)
@@ -156,6 +158,8 @@ def testData(net1, criterion, CUDA_DEVICE, testloader10, testloader, nnName, dat
     torch.save(softmax_scores_out_of_distribution,"./.cache/softmax_scores_out_of_distribution.pt")
     torch.save(ood_scores_in_distribution,"./.cache/ood_scores_in_distribution.pt")
     torch.save(ood_scores_out_of_distribution,"./.cache/ood_scores_out_of_distribution.pt")
+    torch.save(labels_in_distribution,"./.cache/labels_in_distribution.pt")
+    torch.save(labels_out_of_distribution,"./.cache/labels_out_of_distribution.pt")
     print("Hello, World!")
 
 

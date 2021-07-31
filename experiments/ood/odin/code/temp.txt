@@ -1,0 +1,67 @@
+Files already downloaded and verified
+Processing in-distribution images
+ 100/9000 images processed, 10.5 seconds used.
+ 200/9000 images processed, 6.7 seconds used.
+ 300/9000 images processed, 6.9 seconds used.
+ 400/9000 images processed, 6.9 seconds used.
+ 500/9000 images processed, 7.2 seconds used.
+ 600/9000 images processed, 7.1 seconds used.
+ 700/9000 images processed, 7.1 seconds used.
+ 800/9000 images processed, 7.1 seconds used.
+ 900/9000 images processed, 6.9 seconds used.
+1000/9000 images processed, 6.0 seconds used.
+1100/9000 images processed, 6.9 seconds used.
+1200/9000 images processed, 7.1 seconds used.
+1300/9000 images processed, 7.0 seconds used.
+1400/9000 images processed, 7.2 seconds used.
+1500/9000 images processed, 7.0 seconds used.
+1600/9000 images processed, 6.5 seconds used.
+1700/9000 images processed, 6.8 seconds used.
+1800/9000 images processed, 6.5 seconds used.
+1900/9000 images processed, 7.0 seconds used.
+2000/9000 images processed, 6.9 seconds used.
+2100/9000 images processed, 7.0 seconds used.
+2200/9000 images processed, 7.0 seconds used.
+2300/9000 images processed, 6.8 seconds used.
+2400/9000 images processed, 5.9 seconds used.
+2500/9000 images processed, 6.2 seconds used.
+2600/9000 images processed, 6.7 seconds used.
+2700/9000 images processed, 6.9 seconds used.
+2800/9000 images processed, 6.6 seconds used.
+2900/9000 images processed, 6.8 seconds used.
+3000/9000 images processed, 7.1 seconds used.
+3100/9000 images processed, 6.4 seconds used.
+3200/9000 images processed, 5.7 seconds used.
+3300/9000 images processed, 5.7 seconds used.
+3400/9000 images processed, 6.8 seconds used.
+3500/9000 images processed, 6.6 seconds used.
+3600/9000 images processed, 6.6 seconds used.
+3700/9000 images processed, 7.0 seconds used.
+3800/9000 images processed, 6.9 seconds used.
+3900/9000 images processed, 6.8 seconds used.
+4000/9000 images processed, 6.2 seconds used.
+4100/9000 images processed, 6.4 seconds used.
+4200/9000 images processed, 6.9 seconds used.
+4300/9000 images processed, 6.8 seconds used.
+4400/9000 images processed, 7.1 seconds used.
+4500/9000 images processed, 6.9 seconds used.
+4600/9000 images processed, 6.7 seconds used.
+4700/9000 images processed, 6.7 seconds used.
+4800/9000 images processed, 6.8 seconds used.
+4900/9000 images processed, 7.0 seconds used.
+5000/9000 images processed, 6.7 seconds used.
+5100/9000 images processed, 6.9 seconds used.
+5200/9000 images processed, 7.0 seconds used.
+5300/9000 images processed, 6.7 seconds used.
+5400/9000 images processed, 6.8 seconds used.
+5500/9000 images processed, 6.6 seconds used.
+5600/9000 images processed, 7.0 seconds used.
+5700/9000 images processed, 6.8 seconds used.
+5800/9000 images processed, 6.6 seconds used.
+5900/9000 images processed, 7.0 seconds used.
+6000/9000 images processed, 6.8 seconds used.
+6100/9000 images processed, 7.1 seconds used.
+6200/9000 images processed, 6.8 seconds used.
+6300/9000 images processed, 6.6 seconds used.
+6400/9000 images processed, 8.2 seconds used.
+6500/9000 images processed, 6.7 seconds used.
