@@ -74,18 +74,23 @@ def trial_precomputed(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib,
     # Get p-values for each loss
     r_hats_risk1 = calib_tables[:,0,:].flatten(start_dim=1).mean(axis=0).squeeze() # empirical risk at each lambda combination
     p_values_risk1 = np.array([hb_p_value(r_hat,n,alphas[0]) for r_hat in r_hats_risk1])
-    r_hats_risk2 = calib_tables[:,1,:].flatten(start_dim=1).mean(axis=0).squeeze() - alphas[1]*r_hats_risk1 + alphas[1] # empirical risk at each lambda combination using trick
+    r_hats_risk2 = calib_tables[:,1,:].flatten(start_dim=1).mean(axis=0).squeeze() - alphas[1]*(1-r_hats_risk1) + alphas[1] # empirical risk at each lambda combination using trick
     p_values_risk2 = np.array([hb_p_value(r_hat,n,alphas[1]) for r_hat in r_hats_risk2])
 
+    # Populate the corrected p-values
     p_values_corrected = np.zeros_like(p_values_risk1)
-    pdb.set_trace()
     for i in tqdm(range(p_values_risk1.shape[0])):
-        _, pvc, _, _ = multipletests(np.array([p_values_risk1[i], p_values_risk2[i]]), method='holm')
-        p_values_corrected[i] = pvc.max()
+        if p_values_risk1[i] < delta and p_values_risk2[i] < delta:
+            _, pvc, _, _ = multipletests(np.array([p_values_risk1[i], p_values_risk2[i]]), method='holm')
+            p_values_corrected[i] = pvc.max()
+            print(f"\nCorrected p-value: {pvc.max()}\033[1A\r",end="")
+        else:
+            p_values_corrected[i] = min(max(2*p_values_risk1[i], 2*p_values_risk2[i]),1)
 
-
+    # Bonferroni correct over lambda to get the valid discoveries
     R = bonferroni(p_values_corrected, delta)
 
+    # TODO: INDEX PROPERLY TO GET THE CORRECT LAMBDAS
     if R.shape[0] == 0:
         return 0.0, 0.0, 1.0
 
