@@ -19,6 +19,23 @@ from core.concentration import *
 from statsmodels.stats.multitest import multipletests
 import pdb
 
+def plot_histograms(df_list,alphas,delta):
+    fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
+    axs[0].hist(df_list[0]['coverage'])
+    axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
+    axs[0].set_xlabel("Coverage")
+    axs[1].hist(df_list[0]['OOD Type I'])
+    axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
+    axs[1].set_xlabel("CIFAR marked OOD")
+    axs[2].hist(1-df_list[0]['OOD Type II'])
+    axs[2].set_xlabel("Imagenet marked OOD")
+    sns.despine(ax=axs[0],top=True,right=True)
+    sns.despine(ax=axs[1],top=True,right=True)
+    sns.despine(ax=axs[2],top=True,right=True)
+    fig.tight_layout()
+    os.makedirs("./outputs/histograms",exist_ok=True)
+    plt.savefig("./" + f"outputs/histograms/ood_{alphas[0]}_{alphas[1]}_{delta}_histograms".replace(".","_") + ".pdf")
+
 # Table will be n x m x N x N, where n is number of samples, m is number of losses, and N is sampling of lambda
 def get_loss_tables(data,lambda1s,lambda2s):
     os.makedirs('./.cache/', exist_ok=True)
@@ -49,22 +66,29 @@ def get_loss_tables(data,lambda1s,lambda2s):
                 num_incorrect_ood = (odin_ood <= lambda1s[i]).float().sum()
                 frac_ind_ood_table[i] = num_incorrect_ind/float(odin_ind.shape[0])
                 frac_ood_ood_table[i] = 1-num_incorrect_ood/float(odin_ind.shape[0])
-                _softmax_ind = softmax_ind[:-int(num_incorrect_ind)] 
+                if num_incorrect_ind == 0:
+                    index_split = None
+                else:
+                    index_split = -int(num_incorrect_ind)
+                _softmax_ind = softmax_ind[:index_split] 
                 srtd, pi = _softmax_ind.sort(dim=1,descending=True)
                 sizes = (srtd.cumsum(dim=1) <= lambda2s[j]).int().sum(dim=1)
-                missed = ( sizes <= labels_ind[:-int(num_incorrect_ind)] ).int()
+                sizes = torch.max(sizes,torch.ones_like(sizes))
+                rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
+                missed = ( sizes < rank_of_true ).int()
                 loss_tables[:,0,i,j] = (odin_ind > lambda1s[i]).int()
-                loss_tables[:-int(num_incorrect_ind),1,i,j] = missed 
-                size_table[:-int(num_incorrect_ind),i,j] = sizes
+                loss_tables[:index_split,1,i,j] = missed 
+                size_table[:index_split,i,j] = sizes
                 print(f"\n\rFrac InD OOD: {frac_ind_ood_table[i]}, Frac OOD OOD: {frac_ood_ood_table[i]}\033[1A",end="")
         torch.save(loss_tables,"./.cache/loss_tables.pt")
         torch.save(size_table,"./.cache/size_table.pt")
         torch.save(frac_ind_ood_table,"./.cache/frac_ind_ood_table.pt")
         torch.save(frac_ood_ood_table,"./.cache/frac_ood_ood_table.pt")
+        print("Loss tables calculated!")
 
     return loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table
 
-def trial_precomputed(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, maxiter):
+def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter):
     n = loss_tables.shape[0]
     perm = torch.randperm(n)
     
@@ -72,38 +96,52 @@ def trial_precomputed(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib,
     calib_tables, val_tables = (loss_tables[:num_calib], loss_tables[num_calib:])
     
     # Get p-values for each loss
-    r_hats_risk1 = calib_tables[:,0,:].flatten(start_dim=1).mean(axis=0).squeeze() # empirical risk at each lambda combination
+    r_hats_risk1 = calib_tables[:,0,:].mean(axis=0).squeeze().flatten() # empirical risk at each lambda combination
     p_values_risk1 = np.array([hb_p_value(r_hat,n,alphas[0]) for r_hat in r_hats_risk1])
-    r_hats_risk2 = calib_tables[:,1,:].flatten(start_dim=1).mean(axis=0).squeeze() - alphas[1]*(1-r_hats_risk1) + alphas[1] # empirical risk at each lambda combination using trick
+    r_hats_risk2 = (calib_tables[:,1,:] * (1-calib_tables[:,0,:]) - alphas[1]*(1-calib_tables[:,0,:])).mean(axis=0).squeeze().flatten() + alphas[1] # empirical risk at each lambda combination using trick
     p_values_risk2 = np.array([hb_p_value(r_hat,n,alphas[1]) for r_hat in r_hats_risk2])
 
     # Populate the corrected p-values
-    p_values_corrected = np.zeros_like(p_values_risk1)
-    for i in tqdm(range(p_values_risk1.shape[0])):
-        if p_values_risk1[i] < delta and p_values_risk2[i] < delta:
-            _, pvc, _, _ = multipletests(np.array([p_values_risk1[i], p_values_risk2[i]]), method='holm')
-            p_values_corrected[i] = pvc.max()
-            print(f"\nCorrected p-value: {pvc.max()}\033[1A\r",end="")
-        else:
-            p_values_corrected[i] = min(max(2*p_values_risk1[i], 2*p_values_risk2[i]),1)
+    p_values_corrected = np.ones_like(p_values_risk1)
+    smallest_value = np.minimum(p_values_risk1,p_values_risk2)
+    largest_value = np.maximum(p_values_risk1,p_values_risk2)
+    holm_bool = smallest_value <= delta/2
+    p_values_corrected[ holm_bool ] = largest_value[ holm_bool ]
+    p_values_corrected[ ~holm_bool ] = 2 * smallest_value[ ~holm_bool ]
+    #for i in tqdm(range(p_values_risk1.shape[0])):
+    #    if p_values_risk1[i] < delta and p_values_risk2[i] < delta:
+    #        _, pvc, _, _ = multipletests(np.array([p_values_risk1[i], p_values_risk2[i]]), method='holm')
+    #        p_values_corrected[i] = pvc.max()
+    #        print(f"\nCorrected p-value: {pvc.max()}\033[1A\r",end="")
+    #    else:
+    #        p_values_corrected[i] = min(max(2*p_values_risk1[i], 2*p_values_risk2[i]),1)
 
     # Bonferroni correct over lambda to get the valid discoveries
     R = bonferroni(p_values_corrected, delta)
-
-    # TODO: INDEX PROPERLY TO GET THE CORRECT LAMBDAS
     if R.shape[0] == 0:
-        return 0.0, 0.0, 1.0
+        return 0.0, 0.0, 10.0, np.array([1.0,1.0]) 
 
-    lhat = lambdas[R.min()]
+    # Index the lambdas
+    l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s).to(torch.float32))
+    l1_meshgrid = l1_meshgrid.flatten()
+    l2_meshgrid = l2_meshgrid.flatten()
+    l1s = l1_meshgrid[R]
+    l2s = l2_meshgrid[R]
 
-    val_predictions = val_scores > lhat
+    lhat = np.array([l1s.min(), l2s[l1s == l1s.min()].min()])
 
-    pfdp = 1-val_corrects[val_predictions].float().mean()
-    pfdp = np.nan_to_num(pfdp)
+    # Validate
+    idx1 = np.nonzero(np.abs(lambda1s-lhat[0]) < 1e-6)[0]
+    idx2 = np.nonzero(np.abs(lambda2s-lhat[1]) < 1e-6)[0] 
+
+    num_ood = val_tables[:,0,idx1,idx2].sum()
+    risk1 = float(num_ood) / float(val_tables.shape[0])
+    selector = -int(num_ood) if num_ood != 0 else None
+    risk2 = val_tables[:selector,1,idx1,idx2].mean().item()
     
-    mean_size = val_predictions.float().mean()
+    ood_type2 = 1-frac_ood_ood_table[idx1].item()
     
-    return pfdp, mean_size, lhat
+    return risk1, risk2, ood_type2, lhat
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir):
     df_list = []
@@ -115,7 +153,7 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
         rejection_region_name = rejection_region_names[idx]
         fname = f'./.cache/{alphas}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
-        df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","coverage","OOD Type I","OOD Type II","mean size","alpha1","alpha2","delta","region name"])
+        df = pd.DataFrame(columns = ["$\\hat{\\lambda}$","coverage","OOD Type I","OOD Type II","alpha1","alpha2","delta","region name"])
         try:
             df = pd.read_pickle(fname)
         except FileNotFoundError:
@@ -129,19 +167,18 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
             print('Dataset loaded')
 
             if lambda1s == None:
-                lambda1s = torch.linspace(data['odin_ind'].min(),data['odin_ind'].max(),100)
+                lambda1s = torch.linspace(np.quantile(data['odin_ind'],1-alphas[0]),np.quantile(data['odin_ind'],1-alphas[0]/2),10)
 
             loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table = get_loss_tables(data,lambda1s,lambda2s)
 
             with torch.no_grad():
                 local_df_list = []
                 for i in tqdm(range(num_trials)):
-                    pfdp, mean_size, lhat = trial_precomputed(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, maxiter)
-                    dict_local = {"$\\hat{\\lambda}$": lhat,
-                                    "coverage": pfdp,
-                                    "OOD Type I": pfdp,
-                                    "OOD Type II": pfdp,
-                                    "mean size": mean_size,
+                    risk1, risk2, ood_type2, lhat = trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter)
+                    dict_local = {"$\\hat{\\lambda}$": [lhat,],
+                                    "coverage": 1-risk2,
+                                    "OOD Type I": risk1,
+                                    "OOD Type II": ood_type2,
                                     "alpha1": alphas[0],
                                     "alpha2": alphas[1],
                                     "delta": delta,
@@ -154,6 +191,7 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
                 df.to_pickle(fname)
 
         df_list = df_list + [df]
+    plot_histograms(df_list,alphas,delta)
 
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
@@ -162,7 +200,7 @@ if __name__ == "__main__":
 
     cache_dir = './odin/code/.cache/' #TODO: Replace this with YOUR location of imagenet val set.
 
-    alphas = [0.05,0.1]
+    alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
     num_trials = 100 
