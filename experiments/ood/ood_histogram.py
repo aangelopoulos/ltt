@@ -62,29 +62,31 @@ def get_loss_tables(data,lambda1s,lambda2s):
         frac_ind_ood_table = torch.zeros((lambda1s.shape[0],))
         frac_ood_ood_table = torch.zeros((lambda1s.shape[0],))
         print("Calculating loss tables.")
-        def _process(i):
-            for j in range(lambda2s.shape[0]):
-                num_incorrect_ind = (odin_ind > lambda1s[i]).float().sum()
-                num_incorrect_ood = (odin_ood <= lambda1s[i]).float().sum()
-                frac_ind_ood_table[i] = num_incorrect_ind/float(odin_ind.shape[0])
-                frac_ood_ood_table[i] = 1-num_incorrect_ood/float(odin_ind.shape[0])
-                if num_incorrect_ind == 0:
-                    index_split = None
-                else:
-                    index_split = -int(num_incorrect_ind)
-                _softmax_ind = softmax_ind[:index_split] 
-                elif _softmax_ind.shape[0] > 0:
-                    srtd, pi = _softmax_ind.sort(dim=1,descending=True)
-                    sizes = (srtd.cumsum(dim=1) <= lambda2s[j]).int().sum(dim=1)
-                    sizes = torch.max(sizes,torch.ones_like(sizes))
-                    rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
-                    missed = ( sizes < rank_of_true ).int()
-                    loss_tables[:index_split,1,i,j] = missed 
-                    size_table[:index_split,i,j] = sizes
-                loss_tables[:,0,i,j] = (odin_ind > lambda1s[i]).int()
+        for i in tqdm(range(lambda1s.shape[0])):
+            num_incorrect_ind = (odin_ind > lambda1s[i]).float().sum()
+            num_incorrect_ood = (odin_ood <= lambda1s[i]).float().sum()
+            frac_ind_ood_table[i] = num_incorrect_ind/float(odin_ind.shape[0])
+            frac_ood_ood_table[i] = 1-num_incorrect_ood/float(odin_ind.shape[0])
+            if i > 0 and frac_ind_ood_table[i] == frac_ind_ood_table[i-1]:
+                loss_tables[:,:,i,:] = loss_tables[:,:,i-1,:]
+                size_table[:,i,:] = size_table[:,i-1,:]
+            else:
+                for j in range(lambda2s.shape[0]):
+                    if num_incorrect_ind == 0:
+                        index_split = None
+                    else:
+                        index_split = -int(num_incorrect_ind)
+                    _softmax_ind = softmax_ind[:index_split] 
+                    if _softmax_ind.shape[0] > 0:
+                        srtd, pi = _softmax_ind.sort(dim=1,descending=True)
+                        sizes = (srtd.cumsum(dim=1) <= lambda2s[j]).int().sum(dim=1)
+                        sizes = torch.max(sizes,torch.ones_like(sizes))
+                        rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
+                        missed = ( sizes < rank_of_true ).int()
+                        loss_tables[:index_split,1,i,j] = missed 
+                        size_table[:index_split,i,j] = sizes
+                loss_tables[:,0,i,:] = (odin_ind > lambda1s[i]).int().unsqueeze(dim=1)
             print(f"\n\ri: {i}, Frac InD OOD: {frac_ind_ood_table[i]}, Frac OOD OOD: {frac_ood_ood_table[i]}\033[1A",end="")
-        Parallel(n_jobs=30, prefer="threads")(delayed(_process)(i) for i in tqdm(range(lambda1s.shape[0])))
-        pdb.set_trace()
         torch.save(loss_tables,"./.cache/loss_tables.pt")
         torch.save(size_table,"./.cache/size_table.pt")
         torch.save(frac_ind_ood_table,"./.cache/frac_ind_ood_table.pt")
@@ -111,7 +113,6 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
-
 def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale):
     n = loss_tables.shape[0]
     perm = torch.randperm(n)
@@ -121,14 +122,15 @@ def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, 
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
     
     if multiscale:
-        n_coarse = int(calib_tables.shape[0]/4)
+        n_coarse = int(calib_tables.shape[0]/10)
         coarse_tables, fine_tables = (calib_tables[:n_coarse], calib_tables[n_coarse:])
         p_values_coarse = calculate_corrected_p_values(coarse_tables, alphas, lambda1s, lambda2s)
         # Get a band around delta that contains about 5% of examples.
         delta_quantile = (p_values_coarse <= delta).mean()
-        band_size = 0.05
-        limits = (np.quantile(p_values_coarse, delta_quantile),np.quantile(p_values_coarse,delta_quantile+band_size))
-        lambda_selector[ (p_values_coarse >= limits[0]) & (p_values_coarse <= limits[1]) ] = True
+        #band_size = 0.05
+        #limits = (np.quantile(p_values_coarse, delta_quantile),np.quantile(p_values_coarse,delta_quantile+band_size))
+        #lambda_selector[ (p_values_coarse >= limits[0]) & (p_values_coarse <= limits[1]) ] = True
+        lambda_selector[p_values_coarse <= 1.5*delta] = True
         frac_selected = lambda_selector.astype(float).mean()
         if frac_selected == 0:
             print("Selection failed!")
@@ -227,7 +229,7 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 10 
+    num_trials = 100 
     num_calib = 8000
     lambda1s = torch.linspace(0,1,1000)
     lambda2s = np.linspace(0,1,1000)
