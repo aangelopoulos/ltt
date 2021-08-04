@@ -21,14 +21,15 @@ import pdb
 
 def plot_histograms(df_list,alphas,delta):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
-    axs[0].hist(df_list[0]['coverage'])
-    axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
-    axs[0].set_xlabel("Coverage")
-    axs[1].hist(df_list[0]['OOD Type I'])
-    axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
-    axs[1].set_xlabel("CIFAR marked OOD")
-    axs[2].hist(1-df_list[0]['OOD Type II'])
-    axs[2].set_xlabel("Imagenet marked OOD")
+    for df in df_list:
+        axs[0].hist(df['coverage'])
+        axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
+        axs[0].set_xlabel("Coverage")
+        axs[1].hist(df['OOD Type I'])
+        axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
+        axs[1].set_xlabel("CIFAR marked OOD")
+        axs[2].hist(1-df['OOD Type II'])
+        axs[2].set_xlabel("Imagenet marked OOD")
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     sns.despine(ax=axs[2],top=True,right=True)
@@ -88,43 +89,65 @@ def get_loss_tables(data,lambda1s,lambda2s):
 
     return loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table
 
-def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter):
-    n = loss_tables.shape[0]
-    perm = torch.randperm(n)
-    
-    loss_tables = loss_tables[perm]
-    calib_tables, val_tables = (loss_tables[:num_calib], loss_tables[num_calib:])
-    
+def calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s):
+    n = calib_tables.shape[0]
     # Get p-values for each loss
     r_hats_risk1 = calib_tables[:,0,:].mean(axis=0).squeeze().flatten() # empirical risk at each lambda combination
     p_values_risk1 = np.array([hb_p_value(r_hat,n,alphas[0]) for r_hat in r_hats_risk1])
     r_hats_risk2 = (calib_tables[:,1,:] * (1-calib_tables[:,0,:]) - alphas[1]*(1-calib_tables[:,0,:])).mean(axis=0).squeeze().flatten() + alphas[1] # empirical risk at each lambda combination using trick
     p_values_risk2 = np.array([hb_p_value(r_hat,n,alphas[1]) for r_hat in r_hats_risk2])
 
-    # Populate the corrected p-values
-    p_values_corrected = np.ones_like(p_values_risk1)
-    smallest_value = np.minimum(p_values_risk1,p_values_risk2)
-    largest_value = np.maximum(p_values_risk1,p_values_risk2)
-    holm_bool = smallest_value <= delta/2
-    p_values_corrected[ holm_bool ] = largest_value[ holm_bool ]
-    p_values_corrected[ ~holm_bool ] = 2 * smallest_value[ ~holm_bool ]
-    #for i in tqdm(range(p_values_risk1.shape[0])):
-    #    if p_values_risk1[i] < delta and p_values_risk2[i] < delta:
-    #        _, pvc, _, _ = multipletests(np.array([p_values_risk1[i], p_values_risk2[i]]), method='holm')
-    #        p_values_corrected[i] = pvc.max()
-    #        print(f"\nCorrected p-value: {pvc.max()}\033[1A\r",end="")
-    #    else:
-    #        p_values_corrected[i] = min(max(2*p_values_risk1[i], 2*p_values_risk2[i]),1)
-
-    # Bonferroni correct over lambda to get the valid discoveries
-    R = bonferroni(p_values_corrected, delta)
-    if R.shape[0] == 0:
-        return 0.0, 0.0, 10.0, np.array([1.0,1.0]) 
-
-    # Index the lambdas
+    # Combine them
+    p_values_corrected = np.maximum(p_values_risk1,p_values_risk2) 
+    return p_values_corrected
+    
+def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s).to(torch.float32))
     l1_meshgrid = l1_meshgrid.flatten()
     l2_meshgrid = l2_meshgrid.flatten()
+    return l1_meshgrid, l2_meshgrid
+
+
+def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale):
+    n = loss_tables.shape[0]
+    perm = torch.randperm(n)
+    
+    loss_tables = loss_tables[perm]
+    calib_tables, val_tables = (loss_tables[:num_calib], loss_tables[num_calib:])
+    lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
+    
+    if multiscale:
+        n_coarse = int(calib_tables.shape[0]/4)
+        coarse_tables, fine_tables = (calib_tables[:n_coarse], calib_tables[n_coarse:])
+        p_values_coarse = calculate_corrected_p_values(coarse_tables, alphas, lambda1s, lambda2s)
+        # Get a band around delta that contains about 5% of examples.
+        delta_quantile = (p_values_coarse <= delta).mean()
+        band_size = 0.05
+        limits = (np.quantile(p_values_coarse, delta_quantile),np.quantile(p_values_coarse,delta_quantile+band_size))
+        lambda_selector[ (p_values_coarse >= limits[0]) & (p_values_coarse <= limits[1]) ] = True
+        frac_selected = lambda_selector.astype(float).mean()
+        if frac_selected == 0:
+            print("Selection failed!")
+            lambda_selector[:] = True 
+        else:
+            print(f"Fraction selected: {frac_selected}")
+        p_values_corrected = calculate_corrected_p_values(fine_tables, alphas, lambda1s, lambda2s)
+    else:
+        p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s)
+        lambda_selector[:] = True
+
+    # Bonferroni correct over lambda to get the valid discoveries
+    try:
+        R = bonferroni(p_values_corrected[lambda_selector], delta)
+    except:
+        pdb.set_trace()
+    if R.shape[0] == 0:
+        return 0.0, 0.0, 0.0, np.array([1.0,1.0]) 
+
+    # Index the lambdas
+    l1_meshgrid, l2_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s)
+    l1_meshgrid = l1_meshgrid[lambda_selector]
+    l2_meshgrid = l2_meshgrid[lambda_selector]
     l1s = l1_meshgrid[R]
     l2s = l2_meshgrid[R]
 
@@ -145,11 +168,11 @@ def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, 
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir):
     df_list = []
-    rejection_region_functions = (bonferroni_HB,multiscale_bonferroni_HB,romano_wolf_multiplier_bootstrap) 
-    rejection_region_names = ("HBBonferroni","Multiscale HBBonferroni","RWMB")
+    multiscales = (False, True) 
+    rejection_region_names = ("HBBonferroni","Multiscale HBBonferroni")
 
-    for idx in range(len(rejection_region_functions)):
-        rejection_region_function = rejection_region_functions[idx]
+    for idx in range(len(rejection_region_names)):
+        multiscale = multiscales[idx]
         rejection_region_name = rejection_region_names[idx]
         fname = f'./.cache/{alphas}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
@@ -166,15 +189,12 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
             data['labels_ood'] = torch.load(cache_dir + "labels_out_of_distribution.pt")
             print('Dataset loaded')
 
-            if lambda1s == None:
-                lambda1s = torch.linspace(np.quantile(data['odin_ind'],1-alphas[0]),np.quantile(data['odin_ind'],1-alphas[0]/2),10)
-
             loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table = get_loss_tables(data,lambda1s,lambda2s)
 
             with torch.no_grad():
                 local_df_list = []
                 for i in tqdm(range(num_trials)):
-                    risk1, risk2, ood_type2, lhat = trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter)
+                    risk1, risk2, ood_type2, lhat = trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale)
                     dict_local = {"$\\hat{\\lambda}$": [lhat,],
                                     "coverage": 1-risk2,
                                     "OOD Type I": risk1,
@@ -198,14 +218,14 @@ if __name__ == "__main__":
     sns.set_style('white')
     fix_randomness(seed=0)
 
-    cache_dir = './odin/code/.cache/' #TODO: Replace this with YOUR location of imagenet val set.
+    cache_dir = './odin/code/.cache/' 
 
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 100 
+    num_trials = 10 
     num_calib = 8000
-    lambda1s = None 
+    lambda1s = torch.linspace(0,1,1000)
     lambda2s = np.linspace(0,1,1000)
     
     experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir)
