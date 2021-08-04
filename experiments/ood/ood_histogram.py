@@ -62,7 +62,7 @@ def get_loss_tables(data,lambda1s,lambda2s):
         frac_ind_ood_table = torch.zeros((lambda1s.shape[0],))
         frac_ood_ood_table = torch.zeros((lambda1s.shape[0],))
         print("Calculating loss tables.")
-        for i in tqdm(range(lambda1s.shape[0])):
+        def _process(i):
             for j in range(lambda2s.shape[0]):
                 num_incorrect_ind = (odin_ind > lambda1s[i]).float().sum()
                 num_incorrect_ood = (odin_ood <= lambda1s[i]).float().sum()
@@ -73,15 +73,18 @@ def get_loss_tables(data,lambda1s,lambda2s):
                 else:
                     index_split = -int(num_incorrect_ind)
                 _softmax_ind = softmax_ind[:index_split] 
-                srtd, pi = _softmax_ind.sort(dim=1,descending=True)
-                sizes = (srtd.cumsum(dim=1) <= lambda2s[j]).int().sum(dim=1)
-                sizes = torch.max(sizes,torch.ones_like(sizes))
-                rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
-                missed = ( sizes < rank_of_true ).int()
+                elif _softmax_ind.shape[0] > 0:
+                    srtd, pi = _softmax_ind.sort(dim=1,descending=True)
+                    sizes = (srtd.cumsum(dim=1) <= lambda2s[j]).int().sum(dim=1)
+                    sizes = torch.max(sizes,torch.ones_like(sizes))
+                    rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
+                    missed = ( sizes < rank_of_true ).int()
+                    loss_tables[:index_split,1,i,j] = missed 
+                    size_table[:index_split,i,j] = sizes
                 loss_tables[:,0,i,j] = (odin_ind > lambda1s[i]).int()
-                loss_tables[:index_split,1,i,j] = missed 
-                size_table[:index_split,i,j] = sizes
-                print(f"\n\rFrac InD OOD: {frac_ind_ood_table[i]}, Frac OOD OOD: {frac_ood_ood_table[i]}\033[1A",end="")
+            print(f"\n\ri: {i}, Frac InD OOD: {frac_ind_ood_table[i]}, Frac OOD OOD: {frac_ood_ood_table[i]}\033[1A",end="")
+        Parallel(n_jobs=30, prefer="threads")(delayed(_process)(i) for i in tqdm(range(lambda1s.shape[0])))
+        pdb.set_trace()
         torch.save(loss_tables,"./.cache/loss_tables.pt")
         torch.save(size_table,"./.cache/size_table.pt")
         torch.save(frac_ind_ood_table,"./.cache/frac_ind_ood_table.pt")
