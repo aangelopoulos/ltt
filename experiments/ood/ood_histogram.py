@@ -23,13 +23,13 @@ from joblib import Parallel, delayed
 def plot_histograms(df_list,alphas,delta):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
     for df in df_list:
-        axs[0].hist(df['coverage'])
+        axs[0].hist(df['coverage'], alpha=0.5)
         axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
         axs[0].set_xlabel("Coverage")
-        axs[1].hist(df['OOD Type I'])
+        axs[1].hist(df['OOD Type I'], alpha=0.5)
         axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
         axs[1].set_xlabel("CIFAR marked OOD")
-        axs[2].hist(1-df['OOD Type II'])
+        axs[2].hist(1-df['OOD Type II'], alpha=0.5)
         axs[2].set_xlabel("Imagenet marked OOD")
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
