@@ -4,7 +4,7 @@ import numpy as np
 import pdb
 import time
 
-def mu(i,return_dict):
+def mu(mat,i,return_dict):
     print(f"Started mu process {i}!")
     my_mu = mat.mean()
     return_dict[i] = my_mu
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     jobs = []
     t1 = time.time()
     for i in range(num_test):
-        p = mp.Process(target=mu, args=(i, return_dict))
+        p = mp.Process(target=mu, args=(mat, i, return_dict))
         jobs.append(p)
         p.start()
 

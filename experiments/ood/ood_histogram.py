@@ -18,7 +18,7 @@ from core.bounds import hb_p_value
 from core.concentration import *
 from statsmodels.stats.multitest import multipletests
 import pdb
-from joblib import Parallel, delayed
+import multiprocessing as mp
 
 def plot_histograms(df_list,alphas,delta):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
@@ -113,7 +113,8 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
-def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale):
+def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale, i, r1, r2, oodt2, lht):
+    print(f"Run {i} started")
     n = loss_tables.shape[0]
     perm = torch.randperm(n)
     
@@ -170,11 +171,14 @@ def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, 
     
     ood_type2 = 1-frac_ood_ood_table[idx1].item()
     
-    return risk1, risk2, ood_type2, lhat
+    r1[i] = risk1
+    r2[i] = risk2
+    oodt2[i] = ood_type2
+    lht[i] = lhat
+    print(f"Run {i} complete")
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir):
     df_list = []
-    multiscales = (False, True) 
     rejection_region_names = ("HBBonferroni","Multiscale HBBonferroni")
 
     for idx in range(len(rejection_region_names)):
@@ -198,13 +202,30 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
             loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table = get_loss_tables(data,lambda1s,lambda2s)
 
             with torch.no_grad():
+                # Setup shared memory for experiments
+                mp.set_start_method('fork') 
+                manager = mp.Manager()
+                return_risk1 = manager.dict({ k:0. for k in range(num_trials)})
+                return_risk2 = manager.dict({ k:0. for k in range(num_trials)})
+                return_ood_type2 = manager.dict({ k:0. for k in range(num_trials)})
+                return_lhat = manager.dict({ k:np.array([]) for k in range(num_trials)})
+                jobs = []
+
+                for i in range(num_trials):
+                    p = mp.Process(target=trial_precomputed, args=(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale, i, return_risk1, return_risk2, return_ood_type2, return_lhat))
+                    jobs.append(p)
+                    p.start()
+
+                for proc in jobs:
+                    proc.join()
+
+                # Form the large dataframe
                 local_df_list = []
                 for i in tqdm(range(num_trials)):
-                    risk1, risk2, ood_type2, lhat = trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale)
-                    dict_local = {"$\\hat{\\lambda}$": [lhat,],
-                                    "coverage": 1-risk2,
-                                    "OOD Type I": risk1,
-                                    "OOD Type II": ood_type2,
+                    dict_local = {"$\\hat{\\lambda}$": [return_lhat[i],],
+                                    "coverage": 1-return_risk2[i],
+                                    "OOD Type I": return_risk1[i],
+                                    "OOD Type II": return_ood_type2[i],
                                     "alpha1": alphas[0],
                                     "alpha2": alphas[1],
                                     "delta": delta,
