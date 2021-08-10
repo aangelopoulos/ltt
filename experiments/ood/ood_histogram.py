@@ -1,5 +1,6 @@
 import os, sys, inspect
 sys.path.insert(1, os.path.join(sys.path[0], '../../'))
+import ctypes
 import torch
 import torchvision as tv
 import argparse
@@ -19,6 +20,10 @@ from core.concentration import *
 from statsmodels.stats.multitest import multipletests
 import pdb
 import multiprocessing as mp
+import time
+
+data = {}
+global_dict = {"loss_tables": None}
 
 def plot_histograms(df_list,alphas,delta):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
@@ -113,16 +118,16 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
-def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale, i, r1, r2, oodt2, lht):
+def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht):
     print(f"Run {i} started")
-    n = loss_tables.shape[0]
+    n = global_dict['loss_tables'].shape[0]
     perm = torch.randperm(n)
     
-    loss_tables = loss_tables[perm]
+    loss_tables = global_dict['loss_tables'][perm]
     calib_tables, val_tables = (loss_tables[:num_calib], loss_tables[num_calib:])
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
     
-    if multiscale:
+    if method_name == "Multiscale HBBonferroni":
         n_coarse = int(calib_tables.shape[0]/10)
         coarse_tables, fine_tables = (calib_tables[:n_coarse], calib_tables[n_coarse:])
         p_values_coarse = calculate_corrected_p_values(coarse_tables, alphas, lambda1s, lambda2s)
@@ -169,7 +174,7 @@ def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, 
     selector = -int(num_ood) if num_ood != 0 else None
     risk2 = val_tables[:selector,1,idx1,idx2].mean().item()
     
-    ood_type2 = 1-frac_ood_ood_table[idx1].item()
+    ood_type2 = 1-global_dict['frac_ood_ood_table'][idx1].item()
     
     r1[i] = risk1
     r2[i] = risk2
@@ -177,12 +182,13 @@ def trial_precomputed(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, 
     lht[i] = lhat
     print(f"Run {i} complete")
 
+# Define the tables in the global scope
+
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir):
     df_list = []
-    rejection_region_names = ("HBBonferroni","Multiscale HBBonferroni")
+    rejection_region_names = ("HBBonferroni",)
 
     for idx in range(len(rejection_region_names)):
-        multiscale = multiscales[idx]
         rejection_region_name = rejection_region_names[idx]
         fname = f'./.cache/{alphas}_{delta}_{num_calib}_{num_trials}_{rejection_region_name}_dataframe.pkl'
 
@@ -190,7 +196,6 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
         try:
             df = pd.read_pickle(fname)
         except FileNotFoundError:
-            data = {}
             data['softmax_ind'] = torch.load(cache_dir + "softmax_scores_in_distribution.pt")
             data['softmax_ood'] = torch.load(cache_dir + "softmax_scores_out_of_distribution.pt")
             data['odin_ind'] = 1-torch.load(cache_dir + "ood_scores_in_distribution.pt")
@@ -199,22 +204,30 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
             data['labels_ood'] = torch.load(cache_dir + "labels_out_of_distribution.pt")
             print('Dataset loaded')
 
-            loss_tables, size_table, frac_ind_ood_table, frac_ood_ood_table = get_loss_tables(data,lambda1s,lambda2s)
+            if lambda1s == None:
+                lambda1s = np.linspace(data['odin_ind'].min(),data['odin_ind'].max(),100) 
+
 
             with torch.no_grad():
                 # Setup shared memory for experiments
-                mp.set_start_method('fork') 
                 manager = mp.Manager()
                 return_risk1 = manager.dict({ k:0. for k in range(num_trials)})
                 return_risk2 = manager.dict({ k:0. for k in range(num_trials)})
                 return_ood_type2 = manager.dict({ k:0. for k in range(num_trials)})
                 return_lhat = manager.dict({ k:np.array([]) for k in range(num_trials)})
+                # USE https://stackoverflow.com/questions/7894791/use-numpy-array-in-shared-memory-for-multiprocessing
+
                 jobs = []
 
                 for i in range(num_trials):
-                    p = mp.Process(target=trial_precomputed, args=(loss_tables, frac_ood_ood_table, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, multiscale, i, return_risk1, return_risk2, return_ood_type2, return_lhat))
+                    p = mp.Process(target=trial_precomputed, args=(rejection_region_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, return_risk1, return_risk2, return_ood_type2, return_lhat))
                     jobs.append(p)
-                    p.start()
+
+                # Load data after process has been created
+                global_dict['loss_tables'], global_dict['size_table'], global_dict['frac_ind_ood_table'], global_dict['frac_ood_ood_table'] = get_loss_tables(data,lambda1s,lambda2s)
+
+                for proc in jobs:
+                    proc.start()
 
                 for proc in jobs:
                     proc.join()
@@ -244,15 +257,16 @@ if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
     fix_randomness(seed=0)
+    mp.set_start_method('fork') 
 
     cache_dir = './odin/code/.cache/' 
 
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 100 
+    num_trials = 10 
     num_calib = 8000
-    lambda1s = torch.linspace(0,1,1000)
+    lambda1s = None 
     lambda2s = np.linspace(0,1,1000)
     
     experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir)
