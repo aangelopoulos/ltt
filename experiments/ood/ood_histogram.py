@@ -207,6 +207,10 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
             if lambda1s == None:
                 lambda1s = np.linspace(data['odin_ind'].min(),data['odin_ind'].max(),100) 
 
+            # Load data after process has been created
+            global_dict['loss_tables'], global_dict['size_table'], global_dict['frac_ind_ood_table'], global_dict['frac_ood_ood_table'] = get_loss_tables(data,lambda1s,lambda2s)
+            pdb.set_trace()
+
 
             with torch.no_grad():
                 # Setup shared memory for experiments
@@ -215,16 +219,15 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
                 return_risk2 = manager.dict({ k:0. for k in range(num_trials)})
                 return_ood_type2 = manager.dict({ k:0. for k in range(num_trials)})
                 return_lhat = manager.dict({ k:np.array([]) for k in range(num_trials)})
+                shared_arr = manager.dict(global_dict)
                 # USE https://stackoverflow.com/questions/7894791/use-numpy-array-in-shared-memory-for-multiprocessing
+                # USE https://docs.python.org/3/library/multiprocessing.shared_memory.html
 
                 jobs = []
 
                 for i in range(num_trials):
                     p = mp.Process(target=trial_precomputed, args=(rejection_region_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, return_risk1, return_risk2, return_ood_type2, return_lhat))
                     jobs.append(p)
-
-                # Load data after process has been created
-                global_dict['loss_tables'], global_dict['size_table'], global_dict['frac_ind_ood_table'], global_dict['frac_ood_ood_table'] = get_loss_tables(data,lambda1s,lambda2s)
 
                 for proc in jobs:
                     proc.start()
@@ -264,7 +267,7 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 10 
+    num_trials = 100 
     num_calib = 8000
     lambda1s = None 
     lambda2s = np.linspace(0,1,1000)
