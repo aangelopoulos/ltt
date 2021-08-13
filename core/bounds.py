@@ -25,7 +25,8 @@ def bentkus_minus(mu, x, n):
 def hb_p_value(r_hat,n,alpha):
     bentkus_p_value = np.e * binom.cdf(np.ceil(n*r_hat),n,alpha)
     def h1(y,mu):
-        return y * np.log(y/mu) + (1-y) * np.log((1-y)/(1-mu))
+        with np.errstate(divide='ignore'):
+            return y * np.log(y/mu) + (1-y) * np.log((1-y)/(1-mu))
     hoeffding_p_value = np.exp(-n*h1(min(r_hat,alpha),alpha))
     return min(bentkus_p_value,hoeffding_p_value)
 

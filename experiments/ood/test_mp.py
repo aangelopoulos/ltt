@@ -6,7 +6,7 @@ import pdb
 import time
 
 def mu(shm_name, mat_shape, mat_dtype, i,return_dict):
-    print(f"Started mu process {i}!")
+    print(f"Started mu process {i}! ")
     existing_shm = shared_memory.SharedMemory(shm_name)
     mat = np.ndarray(mat_shape,dtype=mat_dtype,buffer=existing_shm.buf)
     my_mu = mat.mean()
