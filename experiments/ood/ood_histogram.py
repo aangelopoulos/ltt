@@ -136,8 +136,8 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     return l1_meshgrid, l2_meshgrid
 
 def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht, curr_proc_dict):
+    fix_randomness(seed=(i*num_calib))
     n = global_dict['loss_tables'].shape[0]
-    fix_randomness(seed = i * curr_proc_dict['num']) 
     perm = torch.randperm(n)
     
     loss_tables = global_dict['loss_tables'][perm]
@@ -163,8 +163,16 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
         lambda_selector[:] = True
 
     if method_name == "HBBFSearch":
-        #p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
-        R = np.nonzero(p_values_corrected < (delta / lambda1s.shape[0]))[0]
+        p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
+        mask = np.zeros_like(p_values_corrected)
+        for row in range(p_values_corrected.shape[0]):
+            p_value_exceed_indexes = np.nonzero(p_values_corrected[row,:] > (delta/lambda1s.shape[0]))[0]
+            valid_col = min(p_value_exceed_indexes.max()+1,p_values_corrected.shape[1]-1)
+            if valid_col == 999:
+                continue
+            mask[row,valid_col] = 1
+        R = np.nonzero(mask.flatten())[0]
+        #R = np.nonzero(p_values_corrected < (delta / lambda1s.shape[0]))[0]
     else:
         # Bonferroni correct over lambda to get the valid discoveries
         R = bonferroni(p_values_corrected[lambda_selector], delta)
@@ -181,8 +189,8 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     lhat = np.array([l1s.min(), l2s[l1s == l1s.min()].min()])
 
     # Validate
-    idx1 = np.nonzero(np.abs(lambda1s-lhat[0]) < 1e-6)[0]
-    idx2 = np.nonzero(np.abs(lambda2s-lhat[1]) < 1e-6)[0] 
+    idx1 = np.nonzero(np.abs(lambda1s-lhat[0]) < 1e-10)[0]
+    idx2 = np.nonzero(np.abs(lambda2s-lhat[1]) < 1e-10)[0] 
 
     num_ood = val_tables[:,0,idx1,idx2].sum()
     risk1 = float(num_ood) / float(val_tables.shape[0])
@@ -199,7 +207,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
 # Define the tables in the global scope
 
-def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir):
+def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes):
     df_list = []
     rejection_region_names = ("HBBonferroni","HBBFSearch")
 
@@ -237,6 +245,8 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
 
                 jobs = []
 
+                #trial_precomputed("HBBFSearch", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+
                 for i in range(num_trials):
                     p = mp.Process(target=trial_precomputed, args=(rejection_region_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict))
                     jobs.append(p)
@@ -244,7 +254,7 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
                 pbar = tqdm(total=num_trials)
 
                 for proc in jobs:
-                    while curr_proc_dict['num'] >= 30:
+                    while curr_proc_dict['num'] >= num_processes:
                         time.sleep(2)
                     proc.start()
                     curr_proc_dict['num'] += 1
@@ -287,9 +297,10 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 1000 
+    num_trials = 1000
     num_calib = 8000
+    num_processes = 30
     lambda1s = None 
     lambda2s = np.linspace(0,1,1000)
     
-    experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir)
+    experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes)
