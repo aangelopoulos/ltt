@@ -1,25 +1,29 @@
-name: ood_fdrcps 
+name: fdrcps 
 channels:
     - anaconda
     - conda-forge
     - pytorch
 dependencies:
-    - pip
-    - python=3.9
-    - numpy
-    - numpy-base
-    - matplotlib
-    - matplotlib-base
-    - scipy
-    - pytorch
-    - torchvision
-    - pandas
-    - pillow
-    - seaborn
-    - tqdm
-    - detectron2
-    - pyyaml
-    - pycocotools
+    - pip=20.1.1
+    - python=3.7.7
+    - numpy=1.18.1
+    - numpy-base=1.18.1
+    - matplotlib=3.1.3
+    - matplotlib-base=3.1.3
+    - scipy=1.4.1
+    - pytorch=1.4.0
+    - torchvision=0.5.0
+    - pandas=1.0.3
+    - pillow=7.1.2
+    - seaborn=0.10.1
+    - tqdm=4.47.0
+    - pyyaml=5.1
+    - pycocotools>=2.0.1
     - seaborn
     - statsmodels
     - joblib
+    - iopath
+    - pip:
+        - git+https://github.com/mapillary/inplace_abn.git@v1.0.12
+        - randaugment
+        - detectron2
