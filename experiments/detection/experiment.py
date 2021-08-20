@@ -31,6 +31,7 @@ if __name__ == "__main__":
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("Cityscapes/mask_rcnn_R_50_FPN.yaml")
     predictor = DefaultPredictor(cfg)
     outputs = predictor(im)
+    pdb.set_trace()
     # We can use `Visualizer` to draw the predictions on the image.
     v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
     out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
