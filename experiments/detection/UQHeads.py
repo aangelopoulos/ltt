@@ -115,15 +115,14 @@ def fast_rcnn_inference_single_image(
     sizes = (cumsum > aps_thresh).int().argmax(dim=1) + 1
     sizes[sizes == 0] = 1 # Size at least 1
     # The prediction set will be a float to be compatible with the inbuilt detectron2 code.
-    result.pred_set = torch.tensor([ set_to_int(pi[i][0:sizes[i]]) for i in range(sizes.shape[0]) ])
+    result.pred_sets = torch.cat([ to_set_mask(pi[i][0:sizes[i]], scores.shape[1]) for i in range(sizes.shape[0]) ], dim=0)
 
     return result, filter_inds[:, 0]
 
-def set_to_int(pset):
-    str_set = ''
-    for val in pset:
-        str_set = str_set + str(val.item()+1) + '00'
-    return float(str_set)
+def to_set_mask(pset, num_classes):
+    pset_return = torch.zeros((num_classes,))
+    pset_return[pset] = 1
+    return pset_return.unsqueeze(dim=0) > 0 
 
 class UQFastRCNNOutputLayers(FastRCNNOutputLayers):
     """
