@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Union, Dict, List, Optional
+from typing import Tuple, Union, Dict, List, Optional
 import fvcore.nn.weight_init as weight_init
 import torch
 import torch.nn as nn
@@ -18,22 +18,12 @@ class UQFastRCNNOutputLayers(FastRCNNOutputLayers):
     """
         A Standard ROIHeads which contains an addition of DensePose head.
     """
-    @configurable
     def __init__(
         self,
+        cfg,
         input_shape: ShapeSpec,
-        *,
-        box2box_transform,
-        num_classes: int,
-        test_score_thresh: float = 0.0,
-        test_nms_thresh: float = 0.5,
-        test_topk_per_image: int = 100,
-        cls_agnostic_bbox_reg: bool = False,
-        smooth_l1_beta: float = 0.0,
-        box_reg_loss_type: str = "smooth_l1",
-        loss_weight: Union[float, Dict[str, float]] = 1.0,
     ):
-        super().__init__(self.cfg, input_shape)
+        super().__init__(cfg, input_shape)
 
 @ROI_HEADS_REGISTRY.register()
 class UQHeads(StandardROIHeads):
@@ -45,8 +35,7 @@ class UQHeads(StandardROIHeads):
         self._init_uq_head(cfg, input_shape)
 
     def _init_uq_head(self, cfg, input_shape):
-        pdb.set_trace()
-        self.box_predictor = UQFastRCNNOutputLayers(cfg, self.box_head.output_shape, cfg)
+        self.box_predictor = UQFastRCNNOutputLayers(cfg, self.box_head.output_shape)
 
     def forward(
         self,
