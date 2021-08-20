@@ -119,6 +119,7 @@ def fast_rcnn_inference_single_image(
     sizes[sizes == 0] = 1 # Size at least 1
     # The prediction set will be a float to be compatible with the inbuilt detectron2 code.
     result.pred_sets = torch.cat([ to_set_mask(pi[i][0:sizes[i]], scores.shape[1]) for i in range(sizes.shape[0]) ], dim=0)
+    result.class_ordering = pi 
 
     return result, filter_inds[:, 0]
 

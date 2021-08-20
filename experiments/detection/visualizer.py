@@ -224,7 +224,7 @@ class _PanopticPrediction:
             if mask.sum() > 0:
                 yield mask, sinfo
 
-def _create_text_labels_sets(pred_sets, class_names):
+def _create_text_labels_sets(pred_sets, class_ordering, class_names):
     """
     Args:
         pred_sets (tensor[bool] or None):
@@ -235,13 +235,13 @@ def _create_text_labels_sets(pred_sets, class_names):
         list[str] or None
     """
     labels = []
+    set_sizes = pred_sets.to(int).sum(dim=1)
     for i in range(pred_sets.shape[0]):
         label = ''
-        indexes = pred_sets[i,:].to(int).nonzero(as_tuple=False).squeeze(dim=0)
-        for j in range(indexes.shape[0]):
-            cls_idx = indexes[j]
+        for j in range(set_sizes[i]):
+            cls_idx = class_ordering[i,j]
             label += class_names[cls_idx]
-            if j < indexes.shape[0]-1:
+            if j < set_sizes[i]-1:
                 label += '\n'
         labels = labels + [label,]
     return labels
@@ -410,7 +410,8 @@ class Visualizer:
         scores = predictions.scores if predictions.has("scores") else None
         classes = predictions.pred_classes.tolist() if predictions.has("pred_classes") else None
         pred_sets = predictions.pred_sets if predictions.has("pred_sets") else None
-        labels = _create_text_labels_sets(pred_sets, self.metadata.get("thing_classes", None))
+        class_ordering = predictions.class_ordering if predictions.has("class_ordering") else None
+        labels = _create_text_labels_sets(pred_sets, class_ordering, self.metadata.get("thing_classes", None))
         #labels = _create_text_labels(classes, scores, self.metadata.get("thing_classes", None))
         keypoints = predictions.pred_keypoints if predictions.has("pred_keypoints") else None
 
