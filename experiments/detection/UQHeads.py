@@ -90,12 +90,15 @@ def fast_rcnn_inference_single_image(
     filter_mask = scores > score_thresh  # R x K
     # R' x 2. First column contains indices of the R predictions;
     # Second column contains indices of classes.
-    filter_inds = filter_mask.nonzero()
+    filter_inds = filter_mask.nonzero(as_tuple=False)
+
     if num_bbox_reg_classes == 1:
         boxes = boxes[filter_inds[:, 0], 0]
     else:
         boxes = boxes[filter_mask]
     top_scores = scores[filter_mask]
+    # remove the scores that don't satisfy the threshold
+    scores = scores[filter_mask.int().sum(dim=1) >= 1]
 
     # 2. Apply NMS for each class independently.
     keep = batched_nms(boxes, top_scores, filter_inds[:, 1], nms_thresh)
@@ -109,9 +112,9 @@ def fast_rcnn_inference_single_image(
     result.pred_classes = filter_inds[:, 1]
 
     # Construct prediction sets
+    scores = scores/scores.sum(dim=1).unsqueeze(dim=1)
     sortd, pi = scores.sort(dim=1, descending=True)
     cumsum = sortd.cumsum(dim=1)
-    cumsum[:,-1] = 1
     sizes = (cumsum > aps_thresh).int().argmax(dim=1) + 1
     sizes[sizes == 0] = 1 # Size at least 1
     # The prediction set will be a float to be compatible with the inbuilt detectron2 code.
@@ -165,7 +168,7 @@ class UQHeads(StandardROIHeads):
     """
         A Standard ROIHeads which contains an addition of DensePose head.
     """
-    def __init__(self, cfg, input_shape, aps_thresh=0.9):
+    def __init__(self, cfg, input_shape, aps_thresh=0.99):
         super().__init__(cfg, input_shape)
         self._init_uq_head(cfg, input_shape, aps_thresh)
 
@@ -222,28 +225,3 @@ class UQHeads(StandardROIHeads):
         else:
             pred_instances, _ = self.box_predictor.inference(predictions, proposals)
             return pred_instances
-
-    def forward_with_given_boxes(
-        self, features: Dict[str, torch.Tensor], instances: List[Instances]
-    ) -> List[Instances]:
-        """
-        Use the given boxes in `instances` to produce other (non-box) per-ROI outputs.
-        This is useful for downstream tasks where a box is known, but need to obtain
-        other attributes (outputs of other heads).
-        Test-time augmentation also uses this.
-        Args:
-            features: same as in `forward()`
-            instances (list[Instances]): instances to predict other outputs. Expect the keys
-                "pred_boxes" and "pred_classes" to exist.
-        Returns:
-            list[Instances]:
-                the same `Instances` objects, with extra
-                fields such as `pred_masks` or `pred_keypoints`.
-        """
-        assert not self.training
-        assert instances[0].has("pred_boxes") and instances[0].has("pred_classes")
-
-        instances = self._forward_mask(features, instances)
-        instances = self._forward_keypoint(features, instances)
-        return instances
-
