@@ -23,7 +23,9 @@ dependencies:
     - statsmodels
     - joblib
     - iopath
+    - detectron2
+    - omegaconf
     - pip:
         - git+https://github.com/mapillary/inplace_abn.git@v1.0.12
         - randaugment
-        - detectron2
+        - opencv-contrib-python
