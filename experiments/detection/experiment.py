@@ -8,6 +8,7 @@ setup_logger()
 import numpy as np
 import matplotlib.pyplot as plt
 import os, json, cv2, random
+import skimage.io as io
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
@@ -15,13 +16,38 @@ from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from visualizer import Visualizer
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 
 from UQHeads import UQHeads
 
 import pdb
 
 if __name__ == "__main__":
-    im = cv2.imread("./datasets/coco/val2017/000000515266.jpg")
+    # Evaluations
+    annType = ['segm','bbox','keypoints']
+    annType = annType[1]      #specify type here
+    dataType = 'val2017'
+    prefix = 'person_keypoints' if annType=='keypoints' else 'instances'
+    dataDir='./datasets/coco/'
+    annFile = '%s/annotations/%s_%s.json'%(dataDir,prefix,dataType)
+    cocoGt=COCO(annFile)
+    # display COCO categories and supercategories
+    cats = cocoGt.loadCats(cocoGt.getCatIds())
+    nms=[cat['name'] for cat in cats]
+    print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+    nms = set([cat['supercategory'] for cat in cats])
+    print('COCO supercategories: \n{}'.format(' '.join(nms)))
+
+    # get all images containing given categories, select one at random
+    catIds = cocoGt.getCatIds(catNms=['person','dog','skateboard']);
+    imgIds = cocoGt.getImgIds(catIds=catIds );
+    imgIds = cocoGt.getImgIds(imgIds = [324158])
+    img = cocoGt.loadImgs(imgIds[np.random.randint(0,len(imgIds))])[0]
+    
+    im = io.imread('%s/%s/%s'%(dataDir,dataType,img['file_name']))
+
     cfg = get_cfg()
     # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
     cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
@@ -38,3 +64,13 @@ if __name__ == "__main__":
     plt.figure()
     plt.imshow(out.get_image()[:, :, ::-1])
     plt.savefig('output.jpg')
+
+    # TODO:  See https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+    # running evaluation
+    #cocoEval = COCOeval(cocoGt,cocoDt,annType)
+    #cocoEval.params.imgIds  = imgIds
+    #cocoEval.evaluate()
+    #cocoEval.accumulate()
+    #cocoEval.summarize()
+
+
