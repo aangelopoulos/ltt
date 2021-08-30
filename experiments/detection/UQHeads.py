@@ -115,10 +115,16 @@ def fast_rcnn_inference_single_image(
     scores = scores/scores.sum(dim=1).unsqueeze(dim=1)
     sortd, pi = scores.sort(dim=1, descending=True)
     cumsum = sortd.cumsum(dim=1)
-    sizes = (cumsum > aps_thresh).int().argmax(dim=1) + 1
-    sizes[sizes == 0] = 1 # Size at least 1
+    try:
+        sizes = (cumsum > aps_thresh).int().argmax(dim=1) + 1
+        sizes[sizes == 0] = 1 # Size at least 1
+    except:
+        sizes = torch.tensor([]) 
     # The prediction set will be a float to be compatible with the inbuilt detectron2 code.
-    result.pred_sets = torch.cat([ to_set_mask(pi[i][0:sizes[i]], scores.shape[1]) for i in range(sizes.shape[0]) ], dim=0)
+    try:
+        result.pred_sets = torch.cat([ to_set_mask(pi[i][0:sizes[i]], scores.shape[1]) for i in range(sizes.shape[0]) ], dim=0)
+    except:
+        result.pred_sets = torch.tensor([])
     result.class_ordering = pi 
 
     return result, filter_inds[:, 0]
