@@ -26,7 +26,7 @@ import pdb
 if __name__ == "__main__":
     # Evaluations
     annType = ['segm','bbox','keypoints']
-    annType = annType[1]      #specify type here
+    annType = annType[0]      #specify type here
     dataType = 'val2017'
     prefix = 'person_keypoints' if annType=='keypoints' else 'instances'
     dataDir='./datasets/coco/'
@@ -41,6 +41,14 @@ if __name__ == "__main__":
     print('COCO supercategories: \n{}'.format(' '.join(nms)))
 
     # get all images containing given categories, select one at random
+    for img_id in cocoGt.imgs:
+        pdb.set_trace()
+        img_metadata = cocoGt.loadImgs(img_id)[0]
+        img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
+        ann_ids = cocoGt.getAnnIds(imgIds=[img_id,])
+        anns = cocoGt.loadAnns(ann_ids)
+
+
     catIds = cocoGt.getCatIds(catNms=['person','dog','skateboard']);
     imgIds = cocoGt.getImgIds(catIds=catIds );
     imgIds = cocoGt.getImgIds(imgIds = [324158])
