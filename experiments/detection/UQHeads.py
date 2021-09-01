@@ -126,6 +126,7 @@ def fast_rcnn_inference_single_image(
     except:
         result.pred_sets = torch.tensor([])
     result.class_ordering = pi 
+    result.softmax_outputs = scores
 
     return result, filter_inds[:, 0]
 
