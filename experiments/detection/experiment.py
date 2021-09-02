@@ -7,15 +7,30 @@ import os, json, cv2, random, sys, traceback
 import pickle as pkl
 import pdb
 
+def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, iou_correct):
+    running_corrects = 0
+    running_total = 0
+    running_gt = 0
+    for i in range(len(roi_masks)):
+        corrects, ious, unused = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],confidence_threshold, segmentation_threshold)
+        if corrects == None:
+            continue
+        running_corrects += ((corrects + (ious > iou_correct)).float() >= 2).float().sum()
+        running_total += float(corrects.shape[0])
+        running_gt += float(gt_masks[i].shape[0])
+        print(f"The AP{100*iou_correct:2.0f} is: {running_corrects/running_total}")
+        print(f"The recall is: {running_corrects/running_gt}")
+
+
 # Calculates the max IOU with respect to any mask.
-def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, threshold):
-    pred_masks = roi_mask.to_bitmasks(box,gt_masks.shape[1],gt_masks.shape[2],threshold).tensor
+def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_threshold, segmentation_threshold):
+    pred_masks = roi_mask.to_bitmasks(box,gt_masks.shape[1],gt_masks.shape[2],segmentation_threshold).tensor
 
     if softmax_output.shape[0] == 0:
        return None, None, None 
 
     top_scores, indices = softmax_output.max(dim=1)[0].sort(descending=True)
-    filter_idx = top_scores > 0.5 
+    filter_idx = top_scores > confidence_threshold 
 
     softmax_output = softmax_output[filter_idx]
     box = box[filter_idx]
@@ -65,15 +80,8 @@ if __name__ == "__main__":
     lambda1s = torch.linspace(0,1,100) # Top score threshold
     lambda2s = torch.linspace(0,1,100) # Segmentation threshold
     lambda3s = torch.linspace(0,1,1000) # APS threshold
-    running_corrects = 0
-    running_total = 0
-    running_gt = 0
-    for i in range(len(roi_masks)):
-        corrects, ious, unused = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],0.5)
-        if corrects == None:
-            continue
-        running_corrects += ((corrects + (ious > 0.5)).float() >= 2).float().sum()
-        running_total += float(corrects.shape[0])
-        running_gt += float(gt_masks[i].shape[0])
-        print(f"The precision is: {running_corrects/running_total}")
-        print(f"The recall is: {running_corrects/running_gt}")
+    confidence_threshold = 0.5
+    segmentation_threshold = 0.5
+    iou_correct = 0.5
+    eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, iou_correct )
+
