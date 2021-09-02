@@ -52,7 +52,4 @@ if __name__ == "__main__":
     lambda2s = torch.linspace(0,1,100) # Segmentation threshold
     lambda3s = torch.linspace(0,1,1000) # APS threshold
     for i in range(len(roi_masks)):
-        corrects, ious = eval_image(roi_masks[0],boxes[0],softmax_outputs[0],gt_classes[0],gt_masks[0],0.5)
-        print(f"Example {i}.")
-        print(f"Corrects: {corrects}.")
-        print(f"IOUs: {ious}.")
+        corrects, ious = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],0.5)
