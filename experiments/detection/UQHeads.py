@@ -95,6 +95,16 @@ def fast_rcnn_inference_single_image(
     
     # Subset by the scores that meet the criteria
     scores = scores[idx_tokeep]
+    if scores.shape[0] == 0:
+        result = Instances(image_shape)
+        result.pred_boxes = Boxes(boxes[0:0,0,:])
+        result.scores = scores
+        result.pred_classes = scores[:,0].long()
+        result.pred_sets = scores.bool()
+        result.class_ordering = scores.long()
+        result.softmax_outputs = scores
+        return result, filter_inds[:, 0]
+
     top_scores = scores.max(dim=1)[0]#scores[filter_mask]
 
     if num_bbox_reg_classes == 1:
