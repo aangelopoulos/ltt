@@ -91,17 +91,20 @@ def fast_rcnn_inference_single_image(
     # R' x 2. First column contains indices of the R predictions;
     # Second column contains indices of classes.
     filter_inds = filter_mask.nonzero(as_tuple=False)
+    idx_tokeep = filter_mask.int().sum(dim=1) >= 1
+    
+    # Subset by the scores that meet the criteria
+    scores = scores[idx_tokeep]
+    top_scores = scores.max(dim=1)[0]#scores[filter_mask]
 
     if num_bbox_reg_classes == 1:
         boxes = boxes[filter_inds[:, 0], 0]
     else:
-        boxes = boxes[filter_mask]
-    top_scores = scores[filter_mask]
+        boxes = boxes[idx_tokeep,scores.argmax(dim=1)]#boxes[filter_mask]
     # remove the scores that don't satisfy the threshold
-    scores = scores[filter_mask.int().sum(dim=1) >= 1]
 
     # 2. Apply NMS for each class independently.
-    keep = batched_nms(boxes, top_scores, filter_inds[:, 1], nms_thresh)
+    keep = batched_nms(boxes, top_scores, scores.argmax(dim=1), nms_thresh)
     if topk_per_image >= 0:
         keep = keep[:topk_per_image]
     boxes, top_scores, scores, filter_inds = boxes[keep], top_scores[keep], scores[keep], filter_inds[keep]
