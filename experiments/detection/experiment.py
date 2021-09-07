@@ -3,10 +3,53 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import os, json, cv2, random, sys, traceback
+from utils import *
+
+import multiprocessing as mp
 
 import pickle as pkl
 from tqdm import tqdm
 import pdb
+
+def get_loss_table():
+    print("Getting the loss table!")
+    with torch.no_grad():
+	# Load cache
+        with open('./.cache/boxes.pkl', 'rb') as f:
+            boxes = pkl.load(f)
+
+        with open('./.cache/roi_masks.pkl', 'rb') as f:
+            roi_masks = pkl.load(f)
+
+        with open('./.cache/softmax.pkl', 'rb') as f:
+            softmax_outputs = pkl.load(f)
+
+        with open('./.cache/gt_classes.pkl', 'rb') as f:
+            gt_classes = pkl.load(f)
+
+        with open('./.cache/gt_masks.pkl', 'rb') as f:
+            gt_masks = pkl.load(f)
+        
+        lambda1s = torch.linspace(0,1,1) # Top score threshold
+        lambda2s = torch.linspace(0,1,1) # Segmentation threshold
+        lambda3s = torch.linspace(0,1,2) # APS threshold
+        loss_table = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
+
+        iou_correct = 0.5
+
+        for i in tqdm(range(lambda1s.shape[0])):
+            for j in range(lambda2s.shape[0]):
+                for k in range(lambda3s.shape[0]):
+                    confidence_threshold = lambda1s[i] 
+                    segmentation_threshold = lambda2s[j] 
+                    aps_threshold = lambda3s[k] 
+                    neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
+                    loss_table[0,i,j,k] = neg_m_coverage
+                    loss_table[1,i,j,k] = neg_miou
+                    loss_table[2,i,j,k] = neg_recall
+                    print(f"l1: {lambda1s[i]:.3f}, l2: {lambda2s[j]:.3f}, l3: {lambda3s[k]:.3f}, nmc: {neg_m_coverage:.3f}, nmiou: {neg_miou:.3f}, nrec: {neg_recall:.3f}")
+        torch.save(loss_table, './.cache/loss_table.pt')
+
 
 # Three risks: coverage (APS), 1-mIOU@50, and 1-recall
 def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
@@ -27,7 +70,6 @@ def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confi
         neg_m_coverage = 1 - running_sum_mean_covered_perimage / float(i+1) 
         neg_miou = 1 - running_sum_miou_perimage/float(i+1)
         neg_recall = running_corrects/running_gt
-        print(f"nmc: {neg_m_coverage}, nmiou: {neg_miou}, nrec: {neg_recall}")
 
     return neg_m_coverage, neg_miou, neg_recall 
 
@@ -82,31 +124,6 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
     return corrects, ious, unused, covered
 
 if __name__ == "__main__":
-    with torch.no_grad():
-	# Load cache
-        with open('./.cache/boxes.pkl', 'rb') as f:
-            boxes = pkl.load(f)
-
-        with open('./.cache/roi_masks.pkl', 'rb') as f:
-            roi_masks = pkl.load(f)
-
-        with open('./.cache/softmax.pkl', 'rb') as f:
-            softmax_outputs = pkl.load(f)
-
-        with open('./.cache/gt_classes.pkl', 'rb') as f:
-            gt_classes = pkl.load(f)
-
-        with open('./.cache/gt_masks.pkl', 'rb') as f:
-            gt_masks = pkl.load(f)
-        
-    lambda1s = torch.linspace(0,1,10) # Top score threshold
-    lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-    lambda3s = torch.linspace(0,1,100) # APS threshold
-    confidence_threshold = 0.99
-    segmentation_threshold = 0.5
-    aps_threshold = 0.5
-    iou_correct = 0.5
-
-    neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
-    print(f"nmc: {neg_m_coverage}, nmiou: {neg_miou}, nrec: {neg_recall}")
-
+    fix_randomness(seed=0)
+    mp.set_start_method('fork')
+    loss_table = get_loss_table()
