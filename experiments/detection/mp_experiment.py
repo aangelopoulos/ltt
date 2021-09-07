@@ -32,10 +32,10 @@ def get_loss_tables():
         with open('./.cache/gt_masks.pkl', 'rb') as f:
             gt_masks = pkl.load(f)
         
-        lambda1s = torch.linspace(0,1,1) # Top score threshold
-        lambda2s = torch.linspace(0,1,1) # Segmentation threshold
-        lambda3s = torch.linspace(0,1,2) # APS threshold
-        num_processes = 1 
+        lambda1s = torch.linspace(0,1,5) # Top score threshold
+        lambda2s = torch.linspace(0,1,5) # Segmentation threshold
+        lambda3s = torch.linspace(0.8,1,10) # APS threshold
+        num_processes = 30 
         global_dict['loss_tables'] = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
 
         iou_correct = 0.5
@@ -135,8 +135,8 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
     for index in indices:
         if unused.shape[0] == 0:
             break
-        _int = (pred_masks[index] * gt_masks[unused].cuda()).sum(dim=1).sum(dim=1) 
-        _uni = ((pred_masks[index].int() + gt_masks[unused].cuda().int()) >= 1).sum(dim=1).sum(dim=1)
+        _int = (pred_masks[index] * gt_masks[unused]).sum(dim=1).sum(dim=1) 
+        _uni = ((pred_masks[index].int() + gt_masks[unused].int()) >= 1).sum(dim=1).sum(dim=1)
         _iou = _int.float()/_uni.float()
         ious[index], max_iou_idx = (_iou.max().item(), _iou.argmax().item())
         curr_gt_class = gt_classes[unused][max_iou_idx]
@@ -151,5 +151,5 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
 
 if __name__ == "__main__":
     fix_randomness(seed=0)
-    mp.set_start_method('fork')
+    mp.set_start_method('spawn')
     get_loss_tables()

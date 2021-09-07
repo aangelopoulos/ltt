@@ -89,6 +89,10 @@ if __name__ == "__main__":
                 gt_masks_singleimage = torch.tensor(np.concatenate(gt_masks_singleimage,axis=2)).permute(2,0,1).cpu()
             except:
                 continue
+
+            # Ensure everything is on cpu
+            outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor.cpu()
+            outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor.cpu()
             pred_classes = pred_classes + [outputs['instances'].pred_classes.cpu(),]
             pred_roi_masks = pred_roi_masks + [outputs['instances'].roi_masks,]
             pred_masks = pred_masks + [outputs['instances'].pred_masks.cpu(),]
