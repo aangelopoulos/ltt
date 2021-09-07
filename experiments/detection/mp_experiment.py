@@ -70,7 +70,7 @@ def get_loss_tables():
 # Evaluates the detector and stores the losses in the loss table
 def eval_detector_wrapped(i,j,k, roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
     print(f"Started ({i},{j},{k})")
-    nmc, nmiou, nrec = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct)
+    neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct)
     global_dict['loss_tables'][0,i,j,k] = neg_m_coverage
     global_dict['loss_tables'][1,i,j,k] = neg_miou
     global_dict['loss_tables'][2,i,j,k] = neg_recall
