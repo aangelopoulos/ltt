@@ -33,14 +33,14 @@ if __name__ == "__main__":
         # Evaluations
         annType = ['segm','bbox','keypoints']
         annType = annType[0]      #specify type here
-        dataType = 'val2014'
+        dataType = 'val2017'
         prefix = 'person_keypoints' if annType=='keypoints' else 'instances'
-        dataDir='./datasets/coco2014/'
+        dataDir='./datasets/coco/'
         annFile = '%s/annotations/%s_%s.json'%(dataDir,prefix,dataType)
         cocoGt=COCO(annFile)
 
         # Get the label mapping from COCO to detectron2 standard
-        label_map = MetadataCatalog['coco_2014_val'].thing_dataset_id_to_contiguous_id
+        label_map = MetadataCatalog['coco_2017_val'].thing_dataset_id_to_contiguous_id
 
         # Load the model
         cfg = get_cfg()

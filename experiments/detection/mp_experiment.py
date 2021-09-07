@@ -11,6 +11,8 @@ import pickle as pkl
 from tqdm import tqdm
 import pdb
 
+global_dict = {"loss_tables": None, "curr_proc": 0}
+
 def get_loss_tables():
     print("Getting the loss tables!")
     with torch.no_grad():
@@ -30,27 +32,50 @@ def get_loss_tables():
         with open('./.cache/gt_masks.pkl', 'rb') as f:
             gt_masks = pkl.load(f)
         
-        lambda1s = torch.linspace(0,1,10) # Top score threshold
-        lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-        lambda3s = torch.linspace(0.9,1,10) # APS threshold
-        loss_tables = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
+        lambda1s = torch.linspace(0,1,1) # Top score threshold
+        lambda2s = torch.linspace(0,1,1) # Segmentation threshold
+        lambda3s = torch.linspace(0,1,2) # APS threshold
+        num_processes = 1 
+        global_dict['loss_tables'] = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
 
         iou_correct = 0.5
 
-        for i in tqdm(range(lambda1s.shape[0])):
+        # Execute loss calculations in parallel
+        pbar = tqdm(total=lambda1s.shape[0]*lambda2s.shape[0]*lambda3s.shape[0])
+        jobs = []
+
+        for i in range(lambda1s.shape[0]):
             for j in range(lambda2s.shape[0]):
                 for k in range(lambda3s.shape[0]):
                     confidence_threshold = lambda1s[i] 
                     segmentation_threshold = lambda2s[j] 
                     aps_threshold = lambda3s[k] 
-                    neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
-                    loss_tables[0,i,j,k] = neg_m_coverage
-                    loss_tables[1,i,j,k] = neg_miou
-                    loss_tables[2,i,j,k] = neg_recall
-                    print(f"l1: {lambda1s[i]:.3f}, l2: {lambda2s[j]:.3f}, l3: {lambda3s[k]:.3f}, nmc: {neg_m_coverage:.3f}, nmiou: {neg_miou:.3f}, nrec: {neg_recall:.3f}")
-        torch.save(loss_tables, './.cache/loss_tables.pt')
-        return loss_tables
+                    p = mp.Process(target=eval_detector_wrapped, args=(i,j,k, roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct))
+                    jobs.append(p)
 
+        for proc in jobs:
+            while global_dict['curr_proc'] >= num_processes:
+                time.sleep(2)
+            proc.start()
+            global_dict['curr_proc'] += 1
+            pbar.update(1)
+
+        pbar.close()
+
+        for proc in jobs:
+            proc.join()
+
+        torch.save(loss_tables, './.cache/loss_tables.pt')
+
+# Evaluates the detector and stores the losses in the loss table
+def eval_detector_wrapped(i,j,k, roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
+    print(f"Started ({i},{j},{k})")
+    nmc, nmiou, nrec = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct)
+    global_dict['loss_tables'][0,i,j,k] = neg_m_coverage
+    global_dict['loss_tables'][1,i,j,k] = neg_miou
+    global_dict['loss_tables'][2,i,j,k] = neg_recall
+    print(f"({i},{j},{k}) | nmc: {neg_m_coverage:.3f}, nmiou: {neg_miou:.3f}, nrec: {neg_recall:.3f}")
+    global_dict['curr_proc'] -= 1
 
 # Three risks: coverage (APS), 1-mIOU@50, and 1-recall
 def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
@@ -126,6 +151,5 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
 
 if __name__ == "__main__":
     fix_randomness(seed=0)
-    loss_tables = get_loss_tables()
-    print(loss_tables)
-    print("Success!")
+    mp.set_start_method('fork')
+    get_loss_tables()
