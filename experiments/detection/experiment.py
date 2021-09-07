@@ -103,8 +103,8 @@ if __name__ == "__main__":
     lambda2s = torch.linspace(0,1,10) # Segmentation threshold
     lambda3s = torch.linspace(0,1,100) # APS threshold
     confidence_threshold = 0.99
-    segmentation_threshold = 0.5 
-    aps_threshold = 0.9
+    segmentation_threshold = 0.5
+    aps_threshold = 0.5
     iou_correct = 0.5
 
     neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
