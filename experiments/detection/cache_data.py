@@ -2,6 +2,7 @@
 # Setup detectron2 logger
 import detectron2
 from detectron2.utils.logger import setup_logger
+from detectron2.data import MetadataCatalog
 setup_logger()
 
 # import some common libraries
@@ -32,11 +33,14 @@ if __name__ == "__main__":
         # Evaluations
         annType = ['segm','bbox','keypoints']
         annType = annType[0]      #specify type here
-        dataType = 'val2017'
+        dataType = 'val2014'
         prefix = 'person_keypoints' if annType=='keypoints' else 'instances'
-        dataDir='./datasets/coco/'
+        dataDir='./datasets/coco2014/'
         annFile = '%s/annotations/%s_%s.json'%(dataDir,prefix,dataType)
         cocoGt=COCO(annFile)
+
+        # Get the label mapping from COCO to detectron2 standard
+        label_map = MetadataCatalog['coco_2014_val'].thing_dataset_id_to_contiguous_id
 
         # Load the model
         cfg = get_cfg()
@@ -91,7 +95,7 @@ if __name__ == "__main__":
             pred_boxes = pred_boxes + [outputs['instances'].pred_boxes,]
             pred_sets = pred_sets + [outputs['instances'].pred_sets,]
             pred_softmax_outputs = pred_softmax_outputs + [outputs['instances'].softmax_outputs.cpu(),]
-            gt_classes = gt_classes + [torch.tensor([ann['category_id']-1 for ann in anns]).cpu(),]
+            gt_classes = gt_classes + [torch.tensor([label_map[ann['category_id']] for ann in anns]).cpu(),]
             gt_masks = gt_masks + [gt_masks_singleimage,]
             #    threshold=0.5
             #    outputs["instances"].pred_masks = pred_roi_masks[-1].to_bitmasks(pred_boxes[-1],img.shape[0],img.shape[1],threshold).tensor
