@@ -32,7 +32,7 @@ def get_loss_tables():
         
         lambda1s = torch.linspace(0,1,10) # Top score threshold
         lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-        lambda3s = torch.linspace(0.9,1,20) # APS threshold
+        lambda3s = torch.linspace(0.9,1,10) # APS threshold
         loss_tables = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
 
         iou_correct = 0.5
@@ -60,8 +60,7 @@ def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confi
     running_sum_mean_covered_perimage = 0
     running_sum_miou_perimage = 0
 
-    pdb.set_trace()
-    for i in range(len(roi_masks)):
+    for i in tqdm(range(len(roi_masks))):
         corrects, ious, unused, covered = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],confidence_threshold,segmentation_threshold,aps_threshold,iou_correct)
         if corrects == None:
             continue
@@ -105,6 +104,13 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
     #rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
 
     # Starting with the most confident mask, correspond it with a ground truth mask based on IOU
+    repeated_pred_masks = pred_masks.repeat(gt_masks.shape[0],1,1,1).permute(1,0,2,3)
+    repeated_gt_masks = gt_masks.repeat(pred_masks.shape[0],1,1,1)
+    addition_pairwise = repeated_pred_masks + repeated_gt_masks
+    intersections_pairwise = ( addition_pairwise == 2 ).float().sum(dim=2).sum(dim=2)
+    unions_pairwise = ( addition_pairwise >= 1 ).float().sum(dim=2).sum(dim=2)
+    ious_pairwise = intersections_pairwise/torch.max(unions_pairwise,torch.tensor([1.0,]))
+
     ious = torch.zeros_like(top_scores)
     corrects = torch.zeros_like(top_scores)
     covered = torch.zeros_like(top_scores)
@@ -112,9 +118,7 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
     for index in indices:
         if unused.shape[0] == 0:
             break
-        _int = (pred_masks[index] * gt_masks[unused]).sum(dim=1).sum(dim=1) 
-        _uni = ((pred_masks[index].int() + gt_masks[unused].int()) >= 1).sum(dim=1).sum(dim=1)
-        _iou = _int.float()/_uni.float()
+        _iou = ious_pairwise[index][unused]
         ious[index], max_iou_idx = (_iou.max().item(), _iou.argmax().item())
         curr_gt_class = gt_classes[unused][max_iou_idx]
         corrects[index] = curr_gt_class == est_classes[index]
