@@ -59,6 +59,8 @@ def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confi
     running_gt = 0
     running_sum_mean_covered_perimage = 0
     running_sum_miou_perimage = 0
+
+    pdb.set_trace()
     for i in range(len(roi_masks)):
         corrects, ious, unused, covered = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],confidence_threshold,segmentation_threshold,aps_threshold,iou_correct)
         if corrects == None:
