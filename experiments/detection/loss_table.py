@@ -29,11 +29,12 @@ def get_loss_tables():
 
         with open('./.cache/gt_masks.pkl', 'rb') as f:
             gt_masks = pkl.load(f)
-        
-        lambda1s = torch.linspace(0.5,1,5) # Top score threshold
+
+        n = len(roi_masks)        
+        lambda1s = torch.linspace(0.5,1,10) # Top score threshold
         lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-        lambda3s = torch.tensor([0.9,0.925,0.95,975,0.99,0.995,0.999,0.9995,1]) # APS threshold
-        loss_tables = torch.zeros(3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
+        lambda3s = torch.tensor([0.9,0.925,0.95,0.975,0.99,0.995,0.999,0.9995,0.9999,0.99995,1]) # APS threshold
+        loss_tables = torch.zeros(n,3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
 
         iou_correct = 0.5
 
@@ -43,43 +44,31 @@ def get_loss_tables():
                     confidence_threshold = lambda1s[i] 
                     segmentation_threshold = lambda2s[j] 
                     aps_threshold = lambda3s[k] 
-                    neg_m_coverage, neg_miou, neg_recall = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
-                    loss_tables[0,i,j,k] = neg_m_coverage
-                    loss_tables[1,i,j,k] = neg_miou
-                    loss_tables[2,i,j,k] = neg_recall
-                    print(f"l1: {lambda1s[i]:.3f}, l2: {lambda2s[j]:.3f}, l3: {lambda3s[k]:.3f}, nmc: {neg_m_coverage:.3f}, nmiou: {neg_miou:.3f}, nrec: {neg_recall:.3f}")
+                    neg_m_coverages, neg_mious, neg_recalls = eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct )
+                    loss_tables[:,0,i,j,k] = neg_m_coverages
+                    loss_tables[:,1,i,j,k] = neg_mious
+                    loss_tables[:,2,i,j,k] = neg_recalls
+                    print(f"l1: {lambda1s[i]:.3f}, l2: {lambda2s[j]:.3f}, l3: {lambda3s[k]:.3f}, Rhat1: {loss_tables[:,0,i,j,k].mean()}, Rhat2: {loss_tables[:,1,i,j,k].mean()}, Rhat3: {loss_tables[:,2,i,j,k].mean()}")
         torch.save(loss_tables, './.cache/loss_tables.pt')
         return loss_tables
 
 
 # Three risks: coverage (APS), 1-mIOU@50, and 1-recall
 def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
-    running_corrects = 0
-    running_total = 0
-    running_gt = 0
-    running_sum_mean_covered_perimage = 0
-    running_sum_miou_perimage = 0
+
+    neg_m_coverages = 1 - torch.zeros((len(roi_masks),))
+    neg_mious = 1 - torch.zeros((len(roi_masks),))
+    neg_recalls = 1 - torch.zeros((len(roi_masks),))
 
     for i in range(len(roi_masks)):
         corrects, ious, unused, covered = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],confidence_threshold,segmentation_threshold,aps_threshold,iou_correct)
         if corrects == None:
             continue
-        running_corrects += ((corrects + (ious > iou_correct)).float() >= 2).float().sum()
-        running_total += float(corrects.shape[0])
-        running_gt += float(gt_masks[i].shape[0])
-        running_sum_miou_perimage += float(ious.mean())
-        running_sum_mean_covered_perimage += np.nan_to_num(float(covered[ious >= iou_correct].mean()))
+        neg_m_coverages[i] = 1 - covered.mean()
+        neg_mious[i] = 1 - ious.mean() 
+        neg_recalls[i] = 1 - corrects.sum()/gt_classes[i].shape[0]
 
-    if running_gt == 0: # No discoveries, no errors 
-        neg_m_coverage = 0.
-        neg_miou = 0.
-        neg_recall = 0.
-    else:
-        neg_m_coverage = 1 - running_sum_mean_covered_perimage / float(len(roi_masks))
-        neg_miou = 1 - running_sum_miou_perimage/float(len(roi_masks))
-        neg_recall = 1 - running_corrects/running_gt
-
-    return neg_m_coverage, neg_miou, neg_recall 
+    return neg_m_coverages, neg_mious, neg_recalls
 
 # Calculates per-image metrics 
 def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
@@ -107,6 +96,8 @@ def eval_image(roi_mask, box, softmax_output, gt_classes, gt_masks, confidence_t
     _, class_ranks = test_pi.sort(dim=1, descending=False)
     sizes = (test_sorted.cumsum(dim=1) <= aps_threshold).int().sum(dim=1)
     sizes = torch.max(sizes,torch.ones_like(sizes))
+    if aps_threshold == 1.0:
+        sizes = torch.max(sizes,80*torch.ones_like(sizes))
     #rank_of_true = (pi == labels_ind[:index_split,None]).int().argmax(dim=1) + 1
 
     # Starting with the most confident mask, correspond it with a ground truth mask based on IOU
