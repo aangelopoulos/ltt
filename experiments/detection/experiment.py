@@ -1,10 +1,13 @@
+import os, sys, inspect
+sys.path.insert(1, os.path.join(sys.path[0], '../../'))
 # import some common libraries
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import os, time, json, cv2, random, sys, traceback
+import os, gc, time, json, cv2, random, sys, traceback
 from utils import *
 from core.bounds import hb_p_value
+from core.concentration import *
 
 import multiprocessing as mp
 
@@ -18,35 +21,31 @@ def calculate_corrected_p_values(calib_tables, alphas):
     n = calib_tables.shape[0]
     # Get p-values for each loss
     r_hats = calib_tables.mean(axis=0).squeeze().flatten(start_dim=1) # empirical risk at each lambda combination
-    p_values = np.array_like(r_hats)
-    for i in range(p_values.shape[1]):
-        for j in range(p_values.shape[2]):
-            for k in range(p_values.shape[3]):
-                for r in range(p_vales.shape[0]): 
-                    p_values[r,i,j,k] = hb_p_value(r_hats[r,i,j,k],n,alphas[r])
+    p_values = np.zeros_like(r_hats)
+    for r in range(p_values.shape[0]):
+        for i in range(p_values.shape[1]): 
+            p_values[r,i] = hb_p_value(r_hats[r,i],n,alphas[r])
 
     # Combine them
-    p_values_corrected = p_values.max(dim=0)
+    p_values_corrected = p_values.max(axis=0)
     return p_values_corrected
     
 def flatten_lambda_meshgrid(lambda1s,lambda2s,lambda3s):
-    l1_meshgrid, l2_meshgrid, l3_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s), torch.tensor(lambda3s))
+    l1_meshgrid, l2_meshgrid, l3_meshgrid = torch.meshgrid((torch.tensor(lambda1s),torch.tensor(lambda2s), torch.tensor(lambda3s)))
     l1_meshgrid = l1_meshgrid.flatten()
     l2_meshgrid = l2_meshgrid.flatten()
     l3_meshgrid = l3_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid, l3_meshgrid
 
-
-def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, num_calib, loss_tables, risks, lhats):
-    fix_randomness(seed=(i*num_calib))
+def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgrid, l3_meshgrid, num_calib, loss_tables, risks, lhats):
+    fix_randomness(seed=(i*10000))
     n = loss_tables["tensor"].shape[0]
     perm = torch.randperm(n)
 
     local_tables = loss_tables["tensor"][perm]
     calib_tables, val_tables = (local_tables[:num_calib], local_tables[num_calib:])
-    l1_meshgrid, l2_meshgrid, l3_meshgrod = flatten_lambda_meshgrid(lambda1s,lambda2s,lambda3s)
 
-    p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s, lambda3s)
+    p_values_corrected = calculate_corrected_p_values(calib_tables, alphas)
     R = bonferroni(p_values_corrected, delta)
 
     if R.shape[0] == 0:
@@ -59,29 +58,34 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, num_calib, loss_tables
     
     l1 = l1s.min()
     l2 = l2s[l1s==l1].min()
-    l3 = l3s[(l1s==l1) & (l2s=l2)].min()
+    l3 = l3s[(l1s==l1) & (l2s==l2)].min()
     lhats[i] = np.array([l1,l2,l3])
 
     # Validate
-    idx1 = np.nonzero(np.abs(lambda1s-lhats[i][0]) < 1e-10)[0]
-    idx2 = np.nonzero(np.abs(lambda2s-lhats[i][1]) < 1e-10)[0]
-    idx3 = np.nonzero(np.abs(lambda3s-lhats[i][2]) < 1e-10)[0]
 
-    risks[i] = 1-val_tables[:,0,idx1,idx2,idx3].mean()
+    idx1 = torch.nonzero(np.abs(lambda1s-lhats[i][0]) < 1e-10)[0][0].item()
+    idx2 = torch.nonzero(np.abs(lambda2s-lhats[i][1]) < 1e-10)[0][0].item()
+    idx3 = torch.nonzero(np.abs(lambda3s-lhats[i][2]) < 1e-10)[0][0].item()
+
+    risks[i] = 1-val_tables[:,:,idx1,idx2,idx3].mean(dim=0)
     loss_tables["curr_proc"] -= 1
+    del calib_tables
+    del val_tables
+    del local_tables
+    gc.collect()
 
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
     num_trials = 1000
-    num_calib = 3000
-    num_processes = 30
+    num_calib = 3000 
+    num_processes = 15 
     mp.set_start_method('fork')
     alphas = [0.2, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1
-    lambda1s = torch.linspace(0.5,1,5) # Top score threshold
+    lambda1s = torch.linspace(0.5,1,10) # Top score threshold
     lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-    lambda3s = torch.tensor([0.9,0.925,0.95,0.975,0.99,0.995,0.999,0.9995,1]) # APS threshold
+    lambda3s = torch.tensor([0.9,0.925,0.95,0.975,0.99,0.995,0.999,0.9995,0.9999,0.99995,1]) # APS threshold
 
     # Multiprocessing setup
     manager = mp.Manager()
@@ -95,15 +99,17 @@ if __name__ == "__main__":
         with torch.no_grad():
             # Load cache
             with open('./.cache/loss_tables.pt', 'rb') as f:
+                #loss_tables["tensor"] = torch.tensor(np.random.random(size=(num_calib*2,3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])))/10
                 loss_tables["tensor"] = torch.load(f)
 
             risks = manager.dict({k:np.zeros((3,)) for k in range(num_trials)})
             lhats = manager.dict({k:np.zeros((3,)) for k in range(num_trials)})
+            l1_meshgrid, l2_meshgrid, l3_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s,lambda3s)
 
             # Queue the jobs
             jobs = []
             for i in range(num_trials):
-                p = mp.Process(target = trial, args = (i, alphas, delta, lambda1s, lambda2s, lambda3s, num_calib, loss_tables, risks, lhats)) 
+                p = mp.Process(target = trial, args = (i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgrid, l3_meshgrid, num_calib, loss_tables, risks, lhats)) 
                 jobs.append(p)
 
             pbar = tqdm(total=num_trials)
