@@ -81,7 +81,7 @@ if __name__ == "__main__":
     num_calib = 3000 
     num_processes = 15 
     mp.set_start_method('fork')
-    alphas = [0.2, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
+    alphas = [0.3, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1
     lambda1s = torch.linspace(0.5,1,10) # Top score threshold
     lambda2s = torch.linspace(0,1,10) # Segmentation threshold

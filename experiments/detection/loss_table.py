@@ -53,7 +53,7 @@ def get_loss_tables():
         return loss_tables
 
 
-# Three risks: coverage (APS), 1-mIOU@50, and 1-recall
+# Three risks: 1-mcoverage (APS), 1-mIOU@50, and 1-recall
 def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
 
     neg_m_coverages = 1 - torch.zeros((len(roi_masks),))

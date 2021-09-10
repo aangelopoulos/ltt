@@ -73,15 +73,19 @@ if __name__ == "__main__":
             print(f"Image {img_id} didn't work.")
 
         # Ensure everything is on cpu
-        tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.8822216
+        outputs['instances'] = outputs['instances'].to('cpu')
+        tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.94444335 
         outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
         outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
         outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
-        outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.22222205).tensor
+        outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.22444426).tensor
+        outputs['instances'].softmax_outputs = outputs['instances'].softmax_outputs[tokeep]
+        outputs['instances'].scores = outputs['instances'].scores[tokeep]
+        outputs['instances'].class_ordering = outputs['instances'].class_ordering[tokeep]
         
         # We can use `Visualizer` to draw the predictions on the image.
         v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        out = v.draw_instance_predictions(outputs["instances"])
 
         plt.figure()
         plt.imshow(out.get_image()[:, :, ::-1])
