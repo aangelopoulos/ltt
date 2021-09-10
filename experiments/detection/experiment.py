@@ -77,7 +77,7 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    num_trials = 1000
+    num_trials = 100
     num_calib = 3000 
     num_processes = 15 
     mp.set_start_method('fork')
@@ -131,9 +131,9 @@ if __name__ == "__main__":
             local_df_list = []
             for i in tqdm(range(num_trials)):
                 dict_local = {"$\\hat{\\lambda}$": [lhats[i],],
-                              "mean coverage": 1-risks[0],
-                              "mIOU": 1-risks[1],
-                              "recall": 1-risks[2],
+                              "mean coverage": 1-risks[i][0].item(),
+                              "mIOU": 1-risks[i][1].item(),
+                              "recall": 1-risks[i][2].item(),
                               "alpha1": alphas[0],
                               "alpha2": alphas[1],
                               "alpha3": alphas[2],
@@ -144,5 +144,4 @@ if __name__ == "__main__":
                 local_df_list = local_df_list + [df_local]
             df = pd.concat(local_df_list, axis=0, ignore_index=True)
             df.to_pickle(fname)
-    pdb.set_trace()
     print("Done!")
