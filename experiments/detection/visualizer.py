@@ -239,14 +239,15 @@ def _create_text_labels_sets(pred_sets, class_ordering, class_names):
     for i in range(pred_sets.shape[0]):
         label = ''
         for j in range(set_sizes[i]):
+            if j == 3:
+                label += 'object'
+                break
             cls_idx = class_ordering[i,j]
             label += class_names[cls_idx]
             if j < set_sizes[i]-1:
                 label += '\n'
         labels = labels + [label,]
     return labels
-
-
 
 def _create_text_labels(classes, scores, class_names, is_crowd=None):
     """

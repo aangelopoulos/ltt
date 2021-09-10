@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
         # get all images and annotations 
         #img_id = 470618 # 309615,261800,309391,509005,178749,356060,310338,231863,493227,519136
-        img_id = cocoGt.getImgIds()[400]
+        img_id = cocoGt.getImgIds()[10]
         img_metadata = cocoGt.loadImgs(img_id)[0]
         img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
         if len(img.shape) < 3:
@@ -73,8 +73,11 @@ if __name__ == "__main__":
             print(f"Image {img_id} didn't work.")
 
         # Ensure everything is on cpu
-        outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor.cpu()
-        outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor.cpu()
+        tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.8822216
+        outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
+        outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
+        outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
+        outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.22222205).tensor
         
         # We can use `Visualizer` to draw the predictions on the image.
         v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
