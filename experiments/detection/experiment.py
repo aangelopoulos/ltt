@@ -56,9 +56,13 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
     l2s = l2_meshgrid[R]
     l3s = l3_meshgrid[R]
     
-    l3 = l3s[l3s > l1s].min()
-    l2 = l2s[l3s==l3].median()
-    l1 = l1s[(l2s==l2) & (l3s==l3)].min()
+    pdb.set_trace()
+    l1 = l1s[l3s > l1s].min()
+    l2 = l2s[(l3s > l1s) & (l1s == l1)].median()
+    l3 = l3s[(l3s > l1s) & (l1s == l1) & (l2s == l2)].min()
+    #l3 = l3s[l3s > l1s].min()
+    #l2 = l2s[l3s==l3].median()
+    #l1 = l1s[(l2s==l2) & (l3s==l3)].min()
     lhats[i] = np.array([l1,l2,l3])
 
     # Validate
@@ -67,7 +71,7 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
     idx2 = torch.nonzero(np.abs(lambda2s-lhats[i][1]) < 1e-10)[0][0].item()
     idx3 = torch.nonzero(np.abs(lambda3s-lhats[i][2]) < 1e-10)[0][0].item()
 
-    risks[i] = 1-val_tables[:,:,idx1,idx2,idx3].mean(dim=0)
+    risks[i] = val_tables[:,:,idx1,idx2,idx3].mean(dim=0)
     loss_tables["curr_proc"] -= 1
     del calib_tables
     del val_tables
@@ -146,4 +150,7 @@ if __name__ == "__main__":
             df.to_pickle(fname)
     average_lambda = np.concatenate([arr[None,:] for arr in df["$\\hat{\\lambda}$"].tolist()],axis=0).mean(axis=0)
     print(f"The average lambda_hat from the runs was: {list(average_lambda)}!")
+    violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
+    print(f'The fraction of violations is {violations.mean()}')
+    pdb.set_trace()
     print("Done!")
