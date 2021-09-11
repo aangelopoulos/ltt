@@ -17,6 +17,36 @@ import pdb
 
 import seaborn as sns
 
+def plot(df,alphas):
+    fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
+
+    axs[0].hist(df['mean coverage'], alpha=0.7)
+    axs[1].hist(df['mIOU'], alpha=0.7)
+    axs[2].hist(df['recall'], alpha=0.7)
+    violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
+    print(f'The fraction of violations is {violations.mean()}')
+
+    # Limits, lines, and labels
+    axs[0].set_ylabel('Density')
+    axs[0].set_xlabel('Mean Coverage')
+    axs[0].axvline(x=1-alphas[0],c='#999999',linestyle='--',alpha=0.7)
+    axs[0].locator_params(axis='x',nbins=4)
+    axs[0].locator_params(axis='y',nbins=4)
+    axs[1].set_xlabel('Mean IOU')
+    axs[1].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
+    axs[1].locator_params(axis='x',nbins=4)
+    axs[1].locator_params(axis='y',nbins=4)
+    axs[2].set_xlabel('Recall')
+    axs[2].axvline(x=1-alphas[2],c='#999999',linestyle='--',alpha=0.7)
+    axs[2].locator_params(axis='x',nbins=4)
+    axs[2].locator_params(axis='y',nbins=4)
+    sns.despine(ax=axs[0],top=True,right=True)
+    sns.despine(ax=axs[1],top=True,right=True)
+    sns.despine(ax=axs[2],top=True,right=True)
+    fig.tight_layout()
+    os.makedirs("./outputs/histograms/",exist_ok=True)
+    plt.savefig("./" + f"outputs/histograms/detector_{alphas[0]}_{alphas[1]}_delta_histograms".replace(".","_") + ".pdf")
+
 def calculate_corrected_p_values(calib_tables, alphas):
     n = calib_tables.shape[0]
     # Get p-values for each loss
@@ -56,13 +86,12 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
     l2s = l2_meshgrid[R]
     l3s = l3_meshgrid[R]
     
-    pdb.set_trace()
-    l1 = l1s[l3s > l1s].min()
-    l2 = l2s[(l3s > l1s) & (l1s == l1)].median()
-    l3 = l3s[(l3s > l1s) & (l1s == l1) & (l2s == l2)].min()
-    #l3 = l3s[l3s > l1s].min()
-    #l2 = l2s[l3s==l3].median()
-    #l1 = l1s[(l2s==l2) & (l3s==l3)].min()
+    #l1 = l1s[l3s > l1s].min()
+    #l2 = l2s[(l3s > l1s) & (l1s == l1)].median()
+    #l3 = l3s[(l3s > l1s) & (l1s == l1) & (l2s == l2)].min()
+    l3 = l3s[l3s > l1s].min()
+    l2 = l2s[(l3s > l1s) & (l3s==l3)].median()
+    l1 = l1s[(l3s > l1s) & (l2s==l2) & (l3s==l3)].min()
     lhats[i] = np.array([l1,l2,l3])
 
     # Validate
@@ -81,7 +110,7 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    num_trials = 100
+    num_trials = 1000
     num_calib = 3000 
     num_processes = 15 
     mp.set_start_method('fork')
@@ -150,7 +179,5 @@ if __name__ == "__main__":
             df.to_pickle(fname)
     average_lambda = np.concatenate([arr[None,:] for arr in df["$\\hat{\\lambda}$"].tolist()],axis=0).mean(axis=0)
     print(f"The average lambda_hat from the runs was: {list(average_lambda)}!")
-    violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
-    print(f'The fraction of violations is {violations.mean()}')
-    pdb.set_trace()
+    plot(df,alphas)
     print("Done!")

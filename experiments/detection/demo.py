@@ -77,11 +77,11 @@ if __name__ == "__main__":
             if len(outputs['instances']) == 0:
                 continue
             outputs['instances'] = outputs['instances'].to('cpu')
-            tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.94444335 
+            tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.94428724 
             outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
             outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
             outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
-            outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.4444441).tensor
+            outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.44278264).tensor
             outputs['instances'].softmax_outputs = outputs['instances'].softmax_outputs[tokeep]
             outputs['instances'].scores = outputs['instances'].scores[tokeep]
             outputs['instances'].class_ordering = outputs['instances'].class_ordering[tokeep]
@@ -91,6 +91,7 @@ if __name__ == "__main__":
             out = v.draw_instance_predictions(outputs["instances"])
 
             os.makedirs('./outputs/', exist_ok=True)
-            plt.figure()
+            fig = plt.figure()
             plt.imshow(out.get_image()[:, :, ::-1])
             plt.savefig(f'outputs/{img_id}.jpg')
+            plt.close(fig)
