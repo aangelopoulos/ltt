@@ -56,37 +56,41 @@ if __name__ == "__main__":
 
         # get all images and annotations 
         #img_id = 470618 # 309615,261800,309391,509005,178749,356060,310338,231863,493227,519136
-        img_id = cocoGt.getImgIds()[10]
-        img_metadata = cocoGt.loadImgs(img_id)[0]
-        img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
-        if len(img.shape) < 3:
-            img = img[:,:,None]
+        for img_idx in tqdm(range(len(cocoGt.getImgIds()))):
+            img_id = cocoGt.getImgIds()[img_idx]
+            img_metadata = cocoGt.loadImgs(img_id)[0]
+            img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
+            if len(img.shape) < 3:
+                img = img[:,:,None]
 
-        ann_ids = cocoGt.getAnnIds(imgIds=[img_id,])
-        anns = cocoGt.loadAnns(ann_ids)
-        try:
-            outputs = predictor(img)
-        except:
-            extype, value, tb = sys.exc_info()
-            traceback.print_exc()
-            pdb.post_mortem(tb)
-            print(f"Image {img_id} didn't work.")
+            ann_ids = cocoGt.getAnnIds(imgIds=[img_id,])
+            anns = cocoGt.loadAnns(ann_ids)
+            try:
+                outputs = predictor(img)
+            except:
+                extype, value, tb = sys.exc_info()
+                traceback.print_exc()
+                pdb.post_mortem(tb)
+                print(f"Image {img_id} didn't work.")
 
-        # Ensure everything is on cpu
-        outputs['instances'] = outputs['instances'].to('cpu')
-        tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.94444335 
-        outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
-        outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
-        outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
-        outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.22444426).tensor
-        outputs['instances'].softmax_outputs = outputs['instances'].softmax_outputs[tokeep]
-        outputs['instances'].scores = outputs['instances'].scores[tokeep]
-        outputs['instances'].class_ordering = outputs['instances'].class_ordering[tokeep]
-        
-        # We can use `Visualizer` to draw the predictions on the image.
-        v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
-        out = v.draw_instance_predictions(outputs["instances"])
+            # Ensure everything is on cpu
+            if len(outputs['instances']) == 0:
+                continue
+            outputs['instances'] = outputs['instances'].to('cpu')
+            tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.94444335 
+            outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
+            outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
+            outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
+            outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.4444441).tensor
+            outputs['instances'].softmax_outputs = outputs['instances'].softmax_outputs[tokeep]
+            outputs['instances'].scores = outputs['instances'].scores[tokeep]
+            outputs['instances'].class_ordering = outputs['instances'].class_ordering[tokeep]
+            
+            # We can use `Visualizer` to draw the predictions on the image.
+            v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
+            out = v.draw_instance_predictions(outputs["instances"])
 
-        plt.figure()
-        plt.imshow(out.get_image()[:, :, ::-1])
-        plt.savefig('output.jpg')
+            os.makedirs('./outputs/', exist_ok=True)
+            plt.figure()
+            plt.imshow(out.get_image()[:, :, ::-1])
+            plt.savefig(f'outputs/{img_id}.jpg')

@@ -56,8 +56,8 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
     l2s = l2_meshgrid[R]
     l3s = l3_meshgrid[R]
     
-    l3 = l3s.min()
-    l2 = l2s[l3s==l3].min()
+    l3 = l3s[l3s > l1s].min()
+    l2 = l2s[l3s==l3].median()
     l1 = l1s[(l2s==l2) & (l3s==l3)].min()
     lhats[i] = np.array([l1,l2,l3])
 
