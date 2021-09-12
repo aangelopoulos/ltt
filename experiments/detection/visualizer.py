@@ -321,7 +321,7 @@ class VisImage:
             filepath (str): a string that contains the absolute path, including the file name, where
                 the visualized image will be saved.
         """
-        self.fig.savefig(filepath,bbox_inches=0)
+        self.fig.savefig(filepath,pad_inches=0,bbox_inches='tight',dpi=300)
 
     def get_image(self):
         """
@@ -332,12 +332,17 @@ class VisImage:
         """
         canvas = self.canvas
         mpl.pyplot.axis("off")
+        mpl.pyplot.tight_layout()
         frame = mpl.pyplot.gca()
-        frame.get_xaxis().set_visible(False)
-        frame.get_yaxis().set_visible(False)
         frame.get_xaxis().set_ticks([])
         frame.get_yaxis().set_ticks([])
-        mpl.pyplot.tight_layout()
+        frame.spines['top'].set_visible(False)
+        frame.spines['right'].set_visible(False)
+        frame.spines['left'].set_visible(False)
+        frame.spines['bottom'].set_visible(False)
+        frame.set_frame_on(False)
+        frame.get_xaxis().set_visible(False)
+        frame.get_yaxis().set_visible(False)
         s, (width, height) = canvas.print_to_buffer()
         # buf = io.BytesIO()  # works for cairo backend
         # canvas.print_rgba(buf)
@@ -1099,7 +1104,7 @@ class Visualizer:
             rgba[:, :, :3] = color
             rgba[:, :, 3] = (mask.mask == 1).astype("float32") * alpha
             has_valid_segment = True
-            self.output.ax.imshow(rgba, extent=(0, self.output.width, self.output.height, 0))
+            self.output.ax.imshow(rgba, extent=(0, self.output.width, self.output.height, 0), interpolation='nearest')
 
         if text is not None and has_valid_segment:
             # TODO sometimes drawn on wrong objects. the heuristics here can improve.
