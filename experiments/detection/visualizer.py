@@ -321,7 +321,7 @@ class VisImage:
             filepath (str): a string that contains the absolute path, including the file name, where
                 the visualized image will be saved.
         """
-        self.fig.savefig(filepath)
+        self.fig.savefig(filepath,bbox_inches=0)
 
     def get_image(self):
         """
@@ -331,6 +331,13 @@ class VisImage:
                 The shape is scaled w.r.t the input image using the given `scale` argument.
         """
         canvas = self.canvas
+        mpl.pyplot.axis("off")
+        frame = mpl.pyplot.gca()
+        frame.get_xaxis().set_visible(False)
+        frame.get_yaxis().set_visible(False)
+        frame.get_xaxis().set_ticks([])
+        frame.get_yaxis().set_ticks([])
+        mpl.pyplot.tight_layout()
         s, (width, height) = canvas.print_to_buffer()
         # buf = io.BytesIO()  # works for cairo backend
         # canvas.print_rgba(buf)

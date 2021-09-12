@@ -56,8 +56,8 @@ if __name__ == "__main__":
 
         # get all images and annotations 
         #img_id = 470618 # 309615,261800,309391,509005,178749,356060,310338,231863,493227,519136
-        for img_idx in tqdm(range(len(cocoGt.getImgIds()))):
-            img_id = cocoGt.getImgIds()[img_idx]
+        for img_id in [1425, 70254]:#tqdm(range(len(cocoGt.getImgIds()))):
+            #img_id = cocoGt.getImgIds()[img_idx]
             img_metadata = cocoGt.loadImgs(img_id)[0]
             img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
             if len(img.shape) < 3:
