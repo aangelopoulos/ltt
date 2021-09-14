@@ -79,7 +79,9 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
     R = bonferroni(p_values_corrected, delta)
 
     if R.shape[0] == 0:
-        return 0.0, 0.0, 0.0, np.array([1.0,1.0,1.0])
+        lhats[i] = np.array([1.0,1.0,1.0])
+        risks[i] = np.array([0.0,0.0,0.0])
+        loss_tables["curr_proc"] -= 1
 
     # Index the lambdas
     l1s = l1_meshgrid[R]
@@ -110,11 +112,11 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    num_trials = 1000
+    num_trials = 100
     num_calib = 3000 
     num_processes = 15 
     mp.set_start_method('fork')
-    alphas = [0.3, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
+    alphas = [0.25, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1
     lambda1s = torch.linspace(0.5,1,10) # Top score threshold
     lambda2s = torch.linspace(0,1,10) # Segmentation threshold
@@ -179,5 +181,6 @@ if __name__ == "__main__":
             df.to_pickle(fname)
     average_lambda = np.concatenate([arr[None,:] for arr in df["$\\hat{\\lambda}$"].tolist()],axis=0).mean(axis=0)
     print(f"The average lambda_hat from the runs was: {list(average_lambda)}!")
+    pdb.set_trace()
     plot(df,alphas)
     print("Done!")

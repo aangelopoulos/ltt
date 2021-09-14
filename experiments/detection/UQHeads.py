@@ -189,7 +189,8 @@ class UQHeads(StandardROIHeads):
     """
         A Standard ROIHeads which contains an addition of DensePose head.
     """
-    def __init__(self, cfg, input_shape, aps_thresh=0.95039815):
+    #def __init__(self, cfg, input_shape, aps_thresh=0.95039815):
+    def __init__(self, cfg, input_shape, aps_thresh=0.999):
         super().__init__(cfg, input_shape)
         self._init_uq_head(cfg, input_shape, aps_thresh)
 

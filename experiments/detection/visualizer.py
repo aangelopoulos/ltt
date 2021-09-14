@@ -321,7 +321,9 @@ class VisImage:
             filepath (str): a string that contains the absolute path, including the file name, where
                 the visualized image will be saved.
         """
-        self.fig.savefig(filepath,pad_inches=0,bbox_inches='tight',dpi=300)
+        self.fig.axes.get_xaxis().set_visible(False)
+        self.fig.axes.get_yaxis().set_visible(False)
+        self.fig.savefig(filepath.split('.')[0] + '.png',format='png',pad_inches=0,bbox_inches='tight',dpi=300)
 
     def get_image(self):
         """
