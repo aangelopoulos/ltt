@@ -56,9 +56,9 @@ def get_loss_tables():
 # Three risks: 1-mcoverage (APS), 1-mIOU@50, and 1-recall
 def eval_detector(roi_masks, boxes, softmax_outputs, gt_classes, gt_masks, confidence_threshold, segmentation_threshold, aps_threshold, iou_correct):
 
-    neg_m_coverages = 1 - torch.zeros((len(roi_masks),))
-    neg_mious = 1 - torch.zeros((len(roi_masks),))
-    neg_recalls = 1 - torch.zeros((len(roi_masks),))
+    neg_m_coverages = torch.zeros((len(roi_masks),))
+    neg_mious = torch.zeros((len(roi_masks),))
+    neg_recalls = torch.zeros((len(roi_masks),))
 
     for i in range(len(roi_masks)):
         corrects, ious, unused, covered = eval_image(roi_masks[i],boxes[i],softmax_outputs[i],gt_classes[i],gt_masks[i],confidence_threshold,segmentation_threshold,aps_threshold,iou_correct)

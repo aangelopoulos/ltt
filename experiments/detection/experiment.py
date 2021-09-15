@@ -112,9 +112,9 @@ def trial(i, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgr
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    num_trials = 100
+    num_trials = 1000
     num_calib = 3000 
-    num_processes = 15 
+    num_processes = 30 
     mp.set_start_method('fork')
     alphas = [0.25, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1

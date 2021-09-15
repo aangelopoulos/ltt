@@ -64,12 +64,16 @@ if __name__ == "__main__":
         # Set lambda hat
 
         # get all images and annotations 
-        #img_id = 470618 # 309615,261800,309391,509005,178749,356060,310338,231863,493227,519136
-        for img_id in [1425,70254]:
+        #img_id = 470618 # 292102, 309615,261800,309391,509005,178749,356060,310338,231863,493227,519136
+        for img_id in [1425,70254,292102,470618,309615,309391,178749,196503,68203]:
         #for img_idx in tqdm(range(len(cocoGt.getImgIds()))):
             #img_id = cocoGt.getImgIds()[img_idx]
-            img_metadata = cocoGt.loadImgs(img_id)[0]
-            img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
+            try:
+                img_metadata = cocoGt.loadImgs(img_id)[0]
+                img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
+            except:
+                img = io.imread(f"./test_data/{img_id}.jpg")
+
             if len(img.shape) < 3:
                 img = img[:,:,None]
 
@@ -104,6 +108,7 @@ if __name__ == "__main__":
             os.makedirs('./outputs/', exist_ok=True)
             dpi = 400
             outImg = out.get_image()[:, :, ::-1]
+            outImg = cv2.resize(outImg,dsize=(img.shape[1],img.shape[0]),interpolation=cv2.INTER_CUBIC)
             diffR = outImg.shape[0]-img.shape[0]
             diffC = outImg.shape[1]-img.shape[1]
             startR = diffR//2
