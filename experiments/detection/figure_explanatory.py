@@ -29,6 +29,25 @@ from UQHeads import UQHeads
 
 import pdb
 from tqdm import tqdm
+import seaborn as sns
+
+def plot_borderless(img, name, cmap=None):
+    dpi=400
+    fig = plt.figure(figsize=(img.shape[1]/dpi,img.shape[0]/dpi))
+    plt.imshow(img,interpolation='nearest',cmap=cmap)
+    sns.despine(top=True,right=True,left=True,bottom=True)
+    ax = plt.gca()
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.set_frame_on(False)
+    ax.set_position([0, 0, 1, 1])
+    plt.margins(0,0)
+    plt.savefig(name, dpi=dpi, pad_inches=0, bbox_inches=0)
+    plt.close(fig)
 
 if __name__ == "__main__":
     with torch.no_grad():
@@ -55,7 +74,7 @@ if __name__ == "__main__":
         predictor = DefaultPredictor(cfg)
 
         # visualize images, mask logits, mask and class 
-        for img_id in tqdm(cocoGt.imgs):
+        for img_id in [87038,]:
             img_metadata = cocoGt.loadImgs(img_id)[0]
             img = io.imread('%s/%s/%s'%(dataDir,dataType,img_metadata['file_name']))
             if len(img.shape) < 3:
@@ -99,9 +118,8 @@ if __name__ == "__main__":
         
             figure_dir = './explanatory_figure/'
             os.makedirs(figure_dir, exist_ok=True)
-            plt.figure()
-            plt.imshow(img)
-            plt.savefig(figure_dir + f"{img_id}_input.jpg")
+            # Plot the original image
+            plot_borderless(img, figure_dir + f"{img_id}_input.jpg", cmap=None)
             paste = retry_if_cuda_oom(paste_masks_in_image)
             pastemasks = paste(
                         pred_roi_masks.tensor,
@@ -109,6 +127,8 @@ if __name__ == "__main__":
                         (gt_masks.shape[1], gt_masks.shape[2]),
                         threshold=-1
             ).to(float)/255
-            plt.figure()
-            plt.imshow(pastemasks.sum(dim=0))
-            plt.savefig(figure_dir + f"{img_id}_mask_prethreshold.jpg")
+            # Plot the mask logits 
+            plot_borderless(pastemasks.sum(dim=0), figure_dir + f"{img_id}_mask_prethreshold.jpg", cmap='gray')
+            # Plot the largest mask
+            idx_largest = pastemasks.sum(dim=1).sum(dim=1).argmax()
+            plot_borderless((pastemasks[idx_largest] > 0.5).float(), figure_dir + f"{img_id}_one_object.jpg", cmap='gray')
