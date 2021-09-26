@@ -172,6 +172,19 @@ def bonferroni_search_CLT(loss_table,lambdas,alpha,delta,downsample_factor):
     p_values = 1-stats.norm.cdf(t_values)
     return bonferroni_search(p_values,delta,downsample_factor)
 
+def graphical_bonferroni_search_HB(loss_table, lambdas_list, alphas, delta, frac_data_split=None):
+    # Example loss table shape:  [9000, 2, 100, 1000]
+    # Split the table
+    n = loss_table.shape[0]
+    n1 = np.floor(n * frac_data_split)
+    perm = torch.randperm(n)
+    selection_table, calib_table = (loss_tables[:n1],loss_tables[n1:])
+
+    out_list = torch.meshgrid([torch.tensor(lams) for lams in lambdas_list])
+    out_list = [lams.flatten() for lams in out_list] 
+    selection_rhats = selection_table.flatten(start_dim=2).mean(dim=0) # rhat
+    p_values_selection = np.zeros_like(selection_rhats)
+
 """
     NAIVE ALGORITHM
 """

@@ -135,6 +135,11 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
+def row_equalized_graph_test(loss_tables, alphas, deltas, lambda1s, lambda2s, num_calib):
+    l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s))
+    A = torch.zeros_like(l1_meshgrid)
+
+
 def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht, curr_proc_dict):
     fix_randomness(seed=(i*num_calib))
     n = global_dict['loss_tables'].shape[0]
@@ -144,38 +149,43 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     calib_tables, val_tables = (loss_tables[:num_calib], loss_tables[num_calib:])
     l1_meshgrid, l2_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s)
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
-    
-    if method_name == "Multiscale HBBonferroni":
-        n_coarse = int(calib_tables.shape[0]/10)
-        coarse_tables, fine_tables = (calib_tables[:n_coarse], calib_tables[n_coarse:])
-        p_values_coarse = calculate_corrected_p_values(coarse_tables, alphas, lambda1s, lambda2s)
-        # Get a band around delta that contains about 5% of examples.
-        delta_quantile = (p_values_coarse <= delta).mean()
-        lambda_selector[p_values_coarse <= 1.5*delta] = True
-        frac_selected = lambda_selector.astype(float).mean()
-        if frac_selected == 0:
-            print("Selection failed!")
-            lambda_selector[:] = True 
-        else:
-            p_values_corrected = calculate_corrected_p_values(fine_tables, alphas, lambda1s, lambda2s)
-    else:
-        p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s)
+
+    if method_name == "Row Equalized Graph":
+        R = row_equalized_graph_test(loss_tables, alphas, deltas, lambda1s, lambda2s, num_calib)    
         lambda_selector[:] = True
 
-    if method_name == "HBBFSearch":
-        p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
-        mask = np.zeros_like(p_values_corrected)
-        for row in range(p_values_corrected.shape[0]):
-            p_value_exceed_indexes = np.nonzero(p_values_corrected[row,:] > (delta/lambda1s.shape[0]))[0]
-            valid_col = min(p_value_exceed_indexes.max()+1,p_values_corrected.shape[1]-1)
-            if valid_col == 999:
-                continue
-            mask[row,valid_col] = 1
-        R = np.nonzero(mask.flatten())[0]
-        #R = np.nonzero(p_values_corrected < (delta / lambda1s.shape[0]))[0]
     else:
-        # Bonferroni correct over lambda to get the valid discoveries
-        R = bonferroni(p_values_corrected[lambda_selector], delta)
+        if method_name == "Multiscale HBBonferroni":
+            n_coarse = int(calib_tables.shape[0]/10)
+            coarse_tables, fine_tables = (calib_tables[:n_coarse], calib_tables[n_coarse:])
+            p_values_coarse = calculate_corrected_p_values(coarse_tables, alphas, lambda1s, lambda2s)
+            # Get a band around delta that contains about 5% of examples.
+            delta_quantile = (p_values_coarse <= delta).mean()
+            lambda_selector[p_values_coarse <= 1.5*delta] = True
+            frac_selected = lambda_selector.astype(float).mean()
+            if frac_selected == 0:
+                print("Selection failed!")
+                lambda_selector[:] = True 
+            else:
+                p_values_corrected = calculate_corrected_p_values(fine_tables, alphas, lambda1s, lambda2s)
+        else:
+            p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s)
+            lambda_selector[:] = True
+
+        if method_name == "HBBFSearch":
+            p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
+            mask = np.zeros_like(p_values_corrected)
+            for row in range(p_values_corrected.shape[0]):
+                p_value_exceed_indexes = np.nonzero(p_values_corrected[row,:] > (delta/lambda1s.shape[0]))[0]
+                valid_col = min(p_value_exceed_indexes.max()+1,p_values_corrected.shape[1]-1)
+                if valid_col == 999:
+                    continue
+                mask[row,valid_col] = 1
+            R = np.nonzero(mask.flatten())[0]
+            #R = np.nonzero(p_values_corrected < (delta / lambda1s.shape[0]))[0]
+        else:
+            # Bonferroni correct over lambda to get the valid discoveries
+            R = bonferroni(p_values_corrected[lambda_selector], delta)
 
     if R.shape[0] == 0:
         return 0.0, 0.0, 0.0, np.array([1.0,1.0]) 
