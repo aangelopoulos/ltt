@@ -136,6 +136,34 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
+def getA_gridsplit(lambda1s,lambda2s):
+    l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s))
+    Is = torch.tensor(range(1,lambda1s.shape[0]+1)).flip(dims=(0,)).double()
+    Js = torch.tensor(range(1,lambda2s.shape[0]+1)).flip(dims=(0,)).double()
+    Is, Js = torch.meshgrid(Is,Js)
+    #Wr[i,j]=mass from node [i,j] to node [i-1,j]
+    #Wc[i,j]=mass from node [i,j] to node [i,j-1]
+    Wr = torch.zeros_like(l1_meshgrid)
+    Wc = torch.zeros_like(l1_meshgrid)
+    Wc[:] = 1
+    data = torch.cat((Wr.flatten(),Wc.flatten()),dim=0).numpy()
+    row = np.concatenate((np.array(range(Wr.numel())),np.array(range(Wr.numel()))),axis=0)
+    i_orig = row // Wr.shape[1]
+    j_orig = row % Wr.shape[1]
+    col = np.concatenate((
+            (i_orig[:row.shape[0]//2] - 1)*Wr.shape[1] + j_orig[:row.shape[0]//2], (i_orig[row.shape[0]//2:])*Wr.shape[1] + j_orig[row.shape[0]//2:] - 1
+        ), axis=0)
+    idx = (col >= 0) & (col < Wr.numel()) 
+    data = data[idx]
+    row = row[idx]
+    col = col[idx]
+    A = sparse.csr_matrix((data, (row, col)), shape=(Wr.numel(), Wr.numel()))
+
+    # Set up the error budget
+    error_budget = torch.zeros((lambda1s.shape[0],lambda2s.shape[0]))
+    error_budget[:,-1] = delta/lambda1s.shape[0]
+    return A, error_budget 
+
 def getA_row_equalized(lambda1s, lambda2s):
     l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s))
     Is = torch.tensor(range(1,lambda1s.shape[0]+1)).flip(dims=(0,)).double()
@@ -165,7 +193,10 @@ def getA_row_equalized(lambda1s, lambda2s):
     col = col[idx]
     A = sparse.csr_matrix((data, (row, col)), shape=(Wr.numel(), Wr.numel()))
 
-    return A 
+    # Set up the error budget
+    error_budget = torch.zeros((lambda1s.shape[0],lambda2s.shape[0]))
+    error_budget[-1,-1] = delta
+    return A, error_budget 
 
 def to_flat_index(idxs,shape):
     return idxs[0]*shape[1] + idxs[1]
@@ -174,7 +205,7 @@ def to_rect_index(idxs,shape):
     return [idxs//shape[1], idxs % shape[1]]
 
 def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
-    A = getA_row_equalized(lambda1s,lambda2s)
+    A, error_budget = getA_gridsplit(lambda1s,lambda2s)
     r_hats = loss_tables.mean(dim=0)
     p_vals = torch.ones_like(r_hats)
     # Calculate the p-values
@@ -185,9 +216,6 @@ def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num
     p_vals = p_vals.max(dim=0)[0]
     
     rejected_bool = torch.zeros_like(p_vals) > 1 # all false
-    # Set up the error budget
-    error_budget = torch.zeros_like(p_vals)
-    error_budget[-1,-1] = delta
 
     while(rejected_bool.int().sum() < p_vals.numel() and error_budget.sum() > 0):
         argmin = (p_vals/error_budget).argmin()
