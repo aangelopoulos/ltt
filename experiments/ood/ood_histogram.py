@@ -6,6 +6,7 @@ import torchvision as tv
 import argparse
 import time
 import numpy as np
+import scipy.sparse as sparse 
 from scipy.stats import binom
 from PIL import Image
 import matplotlib
@@ -135,10 +136,81 @@ def flatten_lambda_meshgrid(lambda1s,lambda2s):
     l2_meshgrid = l2_meshgrid.flatten()
     return l1_meshgrid, l2_meshgrid
 
-def row_equalized_graph_test(loss_tables, alphas, deltas, lambda1s, lambda2s, num_calib):
+def getA_row_equalized(lambda1s, lambda2s):
     l1_meshgrid, l2_meshgrid = torch.meshgrid(torch.tensor(lambda1s),torch.tensor(lambda2s))
-    A = torch.zeros_like(l1_meshgrid)
+    Is = torch.tensor(range(1,lambda1s.shape[0]+1)).flip(dims=(0,)).double()
+    Js = torch.tensor(range(1,lambda2s.shape[0]+1)).flip(dims=(0,)).double()
+    Is, Js = torch.meshgrid(Is,Js)
+    #Wr[i,j]=mass from node [i,j] to node [i-1,j]
+    #Wc[i,j]=mass from node [i,j] to node [i,j-1]
+    Wr = torch.zeros_like(l1_meshgrid)
+    Wc = torch.zeros_like(l1_meshgrid)
+    small_axis = min(lambda1s.shape[0],lambda2s.shape[0])
+    large_axis = max(lambda1s.shape[0],lambda2s.shape[0])
+    tri_bool = (Is + Js) <= small_axis
+    Wr[tri_bool] = (Is/(Is+Js))[tri_bool]
+    Wc[tri_bool] = (Js/(Is+Js))[tri_bool]
+    Wr[~tri_bool & (Is < large_axis)] = 1
+    Wc[Is == large_axis] = 1
+    data = torch.cat((Wr.flatten(),Wc.flatten()),dim=0).numpy()
+    row = np.concatenate((np.array(range(Wr.numel())),np.array(range(Wr.numel()))),axis=0)
+    i_orig = row // Wr.shape[1]
+    j_orig = row % Wr.shape[1]
+    col = np.concatenate((
+            (i_orig[:row.shape[0]//2] - 1)*Wr.shape[1] + j_orig[:row.shape[0]//2], (i_orig[row.shape[0]//2:])*Wr.shape[1] + j_orig[row.shape[0]//2:] - 1
+        ), axis=0)
+    idx = (col >= 0) & (col < Wr.numel()) 
+    data = data[idx]
+    row = row[idx]
+    col = col[idx]
+    A = sparse.csr_matrix((data, (row, col)), shape=(Wr.numel(), Wr.numel()))
 
+    return A 
+
+def to_flat_index(idxs,shape):
+    return idxs[0]*shape[1] + idxs[1]
+
+def to_rect_index(idxs,shape):
+    return [idxs//shape[1], idxs % shape[1]]
+
+def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
+    A = getA_row_equalized(lambda1s,lambda2s)
+    r_hats = loss_tables.mean(dim=0)
+    p_vals = torch.ones_like(r_hats)
+    # Calculate the p-values
+    for (r, i, j), r_hat in np.ndenumerate(r_hats):
+        if r_hat > alphas[r]:
+            continue # assign a p-value of 1 
+        p_vals[r,i,j] = hb_p_value(r_hat,num_calib,alphas[r])
+    p_vals = p_vals.max(dim=0)[0]
+    
+    rejected_bool = torch.zeros_like(p_vals) > 1 # all false
+    # Set up the error budget
+    error_budget = torch.zeros_like(p_vals)
+    error_budget[-1,-1] = delta
+
+    while(rejected_bool.int().sum() < p_vals.numel() and error_budget.sum() > 0):
+        argmin = (p_vals/error_budget).argmin()
+        argmin_rect = to_rect_index(argmin.numpy(),p_vals.shape)
+        minval = p_vals[argmin_rect[0],argmin_rect[1]] 
+        #print(f"discoveries: {rejected_bool.float().sum():.3f}, error left total: {error_budget.sum():.3e}, point:{argmin_rect}, error here: {error_budget[argmin_rect[0],argmin_rect[1]]:.3e}, p_val: {minval:.3e}")
+        if minval > error_budget[argmin_rect[0],argmin_rect[1]]:
+            error_budget[argmin_rect[0],argmin_rect[1]] = 0
+            continue
+        rejected_bool[argmin_rect[0],argmin_rect[1]] = True
+        # TODO: How about nodes that have already been visited?
+        # Modify the graph 
+        outgoing_edges = A[argmin,:]
+        for e in range(outgoing_edges.data.shape[0]):
+            weight = outgoing_edges.data[e]
+            destination = to_rect_index(outgoing_edges.indices[e],error_budget.shape)
+            error_budget[destination[0],destination[1]] += weight*error_budget[argmin_rect[0],argmin_rect[1]]
+            # Cycles in the graph are not possible; so no need to update A!
+        error_budget[argmin_rect[0],argmin_rect[1]] = 0.0
+
+    # plt.figure(); plt.imshow(rejected_bool.float()); plt.savefig('./outputs/rejection_fig.pdf);
+
+    return rejected_bool.flatten().nonzero()
 
 def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht, curr_proc_dict):
     fix_randomness(seed=(i*num_calib))
@@ -151,7 +223,9 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
 
     if method_name == "Row Equalized Graph":
-        R = row_equalized_graph_test(loss_tables, alphas, deltas, lambda1s, lambda2s, num_calib)    
+        R = row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
+        print(R)
+        print(R.min())
         lambda_selector[:] = True
 
     else:
@@ -182,6 +256,8 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
                     continue
                 mask[row,valid_col] = 1
             R = np.nonzero(mask.flatten())[0]
+            print(R)
+            print(R.min())
             #R = np.nonzero(p_values_corrected < (delta / lambda1s.shape[0]))[0]
         else:
             # Bonferroni correct over lambda to get the valid discoveries
@@ -195,6 +271,11 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     l2_meshgrid = l2_meshgrid[lambda_selector]
     l1s = l1_meshgrid[R]
     l2s = l2_meshgrid[R]
+
+    minrow = (R//lambda2s.shape[0]).min()
+    mincol = (R %lambda2s.shape[0]).min()
+    print(minrow)
+    print(mincol)
 
     lhat = np.array([l1s.min(), l2s[l1s == l1s.min()].min()])
 
@@ -219,7 +300,8 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes):
     df_list = []
-    rejection_region_names = ("HBBonferroni","HBBFSearch")
+    rejection_region_names = ("Row Equalized Graph",)
+    #rejection_region_names = ("HBBonferroni","HBBFSearch")
 
     for idx in range(len(rejection_region_names)):
         rejection_region_name = rejection_region_names[idx]
@@ -255,7 +337,10 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
 
                 jobs = []
 
-                #trial_precomputed("HBBFSearch", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                # TEST TRIAL
+                trial_precomputed("Row Equalized Graph", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                trial_precomputed("HBBFSearch", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                pdb.set_trace()
 
                 for i in range(num_trials):
                     p = mp.Process(target=trial_precomputed, args=(rejection_region_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict))
@@ -307,7 +392,7 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 1000
+    num_trials = 30
     num_calib = 8000
     num_processes = 30
     lambda1s = None 
