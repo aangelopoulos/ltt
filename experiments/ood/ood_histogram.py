@@ -141,23 +141,27 @@ def getA_gridsplit(lambda1s,lambda2s):
     Is = torch.tensor(range(1,lambda1s.shape[0]+1)).flip(dims=(0,)).double()
     Js = torch.tensor(range(1,lambda2s.shape[0]+1)).flip(dims=(0,)).double()
     Is, Js = torch.meshgrid(Is,Js)
-    #Wr[i,j]=mass from node [i,j] to node [i-1,j]
     #Wc[i,j]=mass from node [i,j] to node [i,j-1]
-    Wr = torch.zeros_like(l1_meshgrid)
     Wc = torch.zeros_like(l1_meshgrid)
     Wc[:] = 1
-    data = torch.cat((Wr.flatten(),Wc.flatten()),dim=0).numpy()
-    row = np.concatenate((np.array(range(Wr.numel())),np.array(range(Wr.numel()))),axis=0)
-    i_orig = row // Wr.shape[1]
-    j_orig = row % Wr.shape[1]
-    col = np.concatenate((
-            (i_orig[:row.shape[0]//2] - 1)*Wr.shape[1] + j_orig[:row.shape[0]//2], (i_orig[row.shape[0]//2:])*Wr.shape[1] + j_orig[row.shape[0]//2:] - 1
-        ), axis=0)
-    idx = (col >= 0) & (col < Wr.numel()) 
+    data = Wc.flatten().numpy()
+    row = np.array(range(Wc.numel()))
+    i_orig = row // Wc.shape[1]
+    j_orig = row % Wc.shape[1]
+    col = i_orig*Wc.shape[1] + j_orig - 1
+    idx = (col >= 0) & (col < Wc.numel()) 
     data = data[idx]
     row = row[idx]
     col = col[idx]
-    A = sparse.csr_matrix((data, (row, col)), shape=(Wr.numel(), Wr.numel()))
+    # Main edges
+    A = sparse.csr_matrix((data, (row, col)), shape=(Wc.numel(), Wc.numel()))
+    
+    # Skip edges 
+    #skip_bool = (np.array(range(A.shape[0])) % lambda2s.shape[0])==0
+    #skip_bool2 = (np.array(range(A.shape[0])) % lambda2s.shape[0])==(lambda2s.shape[0]-1)
+    #A[skip_bool,:] = 0
+    #A[skip_bool,skip_bool2] = 1
+    A.eliminate_zeros()
 
     # Set up the error budget
     error_budget = torch.zeros((lambda1s.shape[0],lambda2s.shape[0]))
@@ -204,8 +208,26 @@ def to_flat_index(idxs,shape):
 def to_rect_index(idxs,shape):
     return [idxs//shape[1], idxs % shape[1]]
 
+def coordsplit_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
+    r_hats_risk1 = loss_tables[:,0,:].mean(dim=0)
+    r_hats_risk2 = (loss_tables[:,1,:] * (1-loss_tables[:,0,:]) - alphas[1]*(1-loss_tables[:,0,:])).mean(dim=0) + alphas[1] # empirical risk at each lambda combination using trick
+    r_hats = torch.cat((r_hats_risk1[None,:],r_hats_risk2[None,:]),dim=0)
+    p_vals = torch.ones_like(r_hats)
+    # Calculate the p-values
+    for (r, i, j), r_hat in np.ndenumerate(r_hats):
+        if r_hat > alphas[r]:
+            continue # assign a p-value of 1 
+        p_vals[r,i,j] = hb_p_value(r_hat,num_calib,alphas[r])
+
+    lambda1_idx = np.argmax(p_vals[0,:,0] < delta/2).item()
+    lambda2_idx = np.argmax(p_vals[1,lambda1_idx,:] < delta/2).item()
+    R = np.array([lambda1_idx*lambda2s.shape[0] + lambda2_idx,])
+    return R
+
 def graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=False):
-    r_hats = loss_tables.mean(dim=0)
+    r_hats_risk1 = loss_tables[:,0,:].mean(dim=0)
+    r_hats_risk2 = (loss_tables[:,1,:] * (1-loss_tables[:,0,:]) - alphas[1]*(1-loss_tables[:,0,:])).mean(dim=0) + alphas[1] # empirical risk at each lambda combination using trick
+    r_hats = torch.cat((r_hats_risk1[None,:],r_hats_risk2[None,:]),dim=0)
     p_vals = torch.ones_like(r_hats)
     # Calculate the p-values
     for (r, i, j), r_hat in np.ndenumerate(r_hats):
@@ -217,12 +239,14 @@ def graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, 
     rejected_bool = torch.zeros_like(p_vals) > 1 # all false
 
     A = A.tolil()
+    if not acyclic:
+        A_csr = A.tocsr()
     # Graph updates
     while(rejected_bool.int().sum() < p_vals.numel() and error_budget.sum() > 0):
         argmin = (p_vals/error_budget).argmin()
         argmin_rect = to_rect_index(argmin.numpy(),p_vals.shape)
         minval = p_vals[argmin_rect[0],argmin_rect[1]] 
-        print(f"discoveries: {rejected_bool.float().sum():.3f}, error left total: {error_budget.sum():.3e}, point:{argmin_rect}, error here: {error_budget[argmin_rect[0],argmin_rect[1]]:.3e}, p_val: {minval:.3e}")
+        #print(f"discoveries: {rejected_bool.float().sum():.3f}, error left total: {error_budget.sum():.3e}, point:{argmin_rect}, error here: {error_budget[argmin_rect[0],argmin_rect[1]]:.3e}, p_val: {minval:.3e}")
         if minval > error_budget[argmin_rect[0],argmin_rect[1]]:
             error_budget[argmin_rect[0],argmin_rect[1]] = 0
             continue
@@ -234,24 +258,34 @@ def graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, 
             destination = to_rect_index(outgoing_edges.rows[0][e],error_budget.shape)
             error_budget[destination[0],destination[1]] += g_jl*error_budget[argmin_rect[0],argmin_rect[1]]
         if not acyclic:
-            nodes_to_update = list(set(outgoing_edges.rows[0] + A[:,argmin].rows[0])) #Incoming edges
+            incoming_edges = A_csr[:,argmin].T # Use CSR here for speed
+            nodes_to_update = list(set(outgoing_edges.rows[0] + list(incoming_edges.indices))) #Incoming edges
             for node in nodes_to_update:
                 if node == argmin.item():
                     continue
-                A[node,:] = (A[node,:] + A[node,argmin]*outgoing_edges)/(1-A[node,argmin]*A[argmin,node])
+                g_lj = incoming_edges[0,node]
+                if g_lj == 0:
+                    continue
+                A[node,:] = (A[node,:] + g_lj*outgoing_edges)/(1-g_lj*outgoing_edges[0,node])
 
         A[:,argmin] = 0
-        A[argmin,:] = 0
+        #A[argmin,:] = 0 # No incoming nodes, so don't have to set this.
+        if not acyclic:
+            A_csr = A.tocsr()
         error_budget[argmin_rect[0],argmin_rect[1]] = 0.0
 
     return rejected_bool.flatten().nonzero()
 
+def gridsplit_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
+    A, error_budget = getA_gridsplit(lambda1s,lambda2s)
+    return graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=True)
+
 def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
     A, error_budget = getA_row_equalized(lambda1s,lambda2s)
-    return graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=False)
+    return graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=True)
 
 def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht, curr_proc_dict):
-    fix_randomness(seed=(i*num_calib+1000))
+    fix_randomness(seed=(i*num_calib))
     n = global_dict['loss_tables'].shape[0]
     perm = torch.randperm(n)
     
@@ -262,6 +296,15 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
     if method_name == "Row Equalized Graph":
         R = row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
+        lambda_selector[:] = True
+
+    elif method_name == "Graph":
+        R = gridsplit_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
+        lambda_selector[:] = True
+
+    elif method_name == "2D Fixed Sequence":
+        R = coordsplit_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)
+
         lambda_selector[:] = True
 
     else:
@@ -282,7 +325,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
             p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s)
             lambda_selector[:] = True
 
-        if method_name == "HBBFSearch":
+        if method_name == "SGT":
             p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
             mask = np.zeros_like(p_values_corrected)
             for row in range(p_values_corrected.shape[0]):
@@ -306,10 +349,10 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     l1s = l1_meshgrid[R]
     l2s = l2_meshgrid[R]
 
-    #minrow = (R//lambda2s.shape[0]).min()
-    #mincol = (R %lambda2s.shape[0]).min()
-    #print(minrow)
-    #print(mincol)
+    minrow = (R//lambda2s.shape[0]).min()
+    mincol = (R %lambda2s.shape[0]).min()
+    print(minrow)
+    print(mincol)
 
     lhat = np.array([l1s[l2s==l2s.min()].min(), l2s.min()])
     #lhat = np.array([l1s.min(), l2s[l1s==l1s.min()].min()])
@@ -336,7 +379,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes):
     df_list = []
-    rejection_region_names = ("HBBonferroni", "HBBFSearch","Row Equalized Graph")
+    rejection_region_names = ("Bonferroni","2D Fixed Sequence","SGT")
 
     for idx in range(len(rejection_region_names)):
         rejection_region_name = rejection_region_names[idx]
@@ -373,9 +416,10 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
                 jobs = []
 
                 # TEST TRIAL
-                trial_precomputed("Row Equalized Graph", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
-                print("Test trial complete.")
+                #trial_precomputed("Graph", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                #print("Test trial complete.")
                 #trial_precomputed("HBBFSearch", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                #trial_precomputed("Coordinate Split", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
 
                 for i in range(num_trials):
                     p = mp.Process(target=trial_precomputed, args=(rejection_region_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict))
@@ -419,7 +463,7 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    fix_randomness(seed=10000)
+    fix_randomness(seed=0)
     mp.set_start_method('fork') 
 
     cache_dir = './odin/code/.cache/' 
@@ -427,7 +471,7 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 10
+    num_trials = 1000
     num_calib = 8000
     num_processes = 30
     lambda1s = None 
