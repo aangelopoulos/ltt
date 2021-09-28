@@ -204,8 +204,7 @@ def to_flat_index(idxs,shape):
 def to_rect_index(idxs,shape):
     return [idxs//shape[1], idxs % shape[1]]
 
-def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
-    A, error_budget = getA_row_equalized(lambda1s,lambda2s)
+def graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=False):
     r_hats = loss_tables.mean(dim=0)
     p_vals = torch.ones_like(r_hats)
     # Calculate the p-values
@@ -217,16 +216,13 @@ def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num
     
     rejected_bool = torch.zeros_like(p_vals) > 1 # all false
 
-    plt.figure()
-    plt.imshow((p_vals < delta).float())
-    plt.savefig('./outputs/all_possible.pdf')
-
     A = A.tolil()
+    # Graph updates
     while(rejected_bool.int().sum() < p_vals.numel() and error_budget.sum() > 0):
         argmin = (p_vals/error_budget).argmin()
         argmin_rect = to_rect_index(argmin.numpy(),p_vals.shape)
         minval = p_vals[argmin_rect[0],argmin_rect[1]] 
-        #print(f"discoveries: {rejected_bool.float().sum():.3f}, error left total: {error_budget.sum():.3e}, point:{argmin_rect}, error here: {error_budget[argmin_rect[0],argmin_rect[1]]:.3e}, p_val: {minval:.3e}")
+        print(f"discoveries: {rejected_bool.float().sum():.3f}, error left total: {error_budget.sum():.3e}, point:{argmin_rect}, error here: {error_budget[argmin_rect[0],argmin_rect[1]]:.3e}, p_val: {minval:.3e}")
         if minval > error_budget[argmin_rect[0],argmin_rect[1]]:
             error_budget[argmin_rect[0],argmin_rect[1]] = 0
             continue
@@ -234,20 +230,25 @@ def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num
         # Modify the graph 
         outgoing_edges = A[argmin,:]
         for e in range(len(outgoing_edges.data[0])):
-            weight = outgoing_edges.data[0][e]
+            g_jl = outgoing_edges.data[0][e]
             destination = to_rect_index(outgoing_edges.rows[0][e],error_budget.shape)
-            error_budget[destination[0],destination[1]] += weight*error_budget[argmin_rect[0],argmin_rect[1]]
-            # Cycles in the graph are not possible; so no need to update A here.
-        # The only necessary update to A is to zero out all edges to discovered nodes.
+            error_budget[destination[0],destination[1]] += g_jl*error_budget[argmin_rect[0],argmin_rect[1]]
+        if not acyclic:
+            nodes_to_update = list(set(outgoing_edges.rows[0] + A[:,argmin].rows[0])) #Incoming edges
+            for node in nodes_to_update:
+                if node == argmin.item():
+                    continue
+                A[node,:] = (A[node,:] + A[node,argmin]*outgoing_edges)/(1-A[node,argmin]*A[argmin,node])
+
         A[:,argmin] = 0
+        A[argmin,:] = 0
         error_budget[argmin_rect[0],argmin_rect[1]] = 0.0
 
-    plt.figure()
-    plt.imshow(rejected_bool.float())
-    plt.savefig('./outputs/rejection_fig.pdf')
-    # plt.figure(); plt.imshow(rejected_bool.float()); plt.savefig('./outputs/rejection_fig.pdf);
-
     return rejected_bool.flatten().nonzero()
+
+def row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib):
+    A, error_budget = getA_row_equalized(lambda1s,lambda2s)
+    return graph_test(A, error_budget, loss_tables, alphas, delta, lambda1s, lambda2s, num_calib, acyclic=False)
 
 def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib, maxiter, i, r1, r2, oodt2, lht, curr_proc_dict):
     fix_randomness(seed=(i*num_calib+1000))
@@ -372,7 +373,8 @@ def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache
                 jobs = []
 
                 # TEST TRIAL
-                #trial_precomputed("Row Equalized Graph", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                trial_precomputed("Row Equalized Graph", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
+                print("Test trial complete.")
                 #trial_precomputed("HBBFSearch", alphas, delta, lambda1s, lambda2s, num_calib, maxiter, 0, return_risk1, return_risk2, return_ood_type2, return_lhat, curr_proc_dict)
 
                 for i in range(num_trials):
@@ -425,7 +427,7 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 100
+    num_trials = 10
     num_calib = 8000
     num_processes = 30
     lambda1s = None 
