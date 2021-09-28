@@ -105,7 +105,7 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     indexes_fine_grid = method(big_table[:,lambda_indexes_to_search],lambdas[lambda_indexes_to_search],alpha,delta, *argv)
     if len(indexes_fine_grid) == 0:
         print("ZERO SIZE\n\n\n")
-        pdb.set_trace()
+        #pdb.set_trace()
         return np.array([0,])
     return_indexes = lambda_indexes_to_search[indexes_fine_grid]
     return return_indexes 
@@ -256,31 +256,34 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
     R_multiscale_bonferroni_search_HB = multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor)
 
     Rs = (R_naive, 
+         )
+
+    #labels = (r'Empirical risk < $\alpha$',
+    #         )
+
+    #colors = ('#C18268',
+    #         )
+
+    Rs = (R_naive, 
             R_RW_bootstrap, 
             R_bonferroni_search_HB,
             R_bonferroni_HB,
-            R_bonferroni_CLT,
             R_uniform,
-            R_multiscale_bonferroni_HB,
-            R_multiscale_bonferroni_search_HB)
+         )
 
     labels = (r'Empirical risk < $\alpha$',
-                r'RWMB Rejections',
-                r'BonferroniSearchHB Rejections',
-                r'BonferroniHB Rejections',
-                r'BonferroniCLT Rejections',
-                r'Bardenet Rejections (uniform)',
-                r'Multiscale BonferroniHB Rejections',
-                r'Multiscale BonferroniSearchHB Rejections')
+                r'Multiplier Bootstrap',
+                r'Fixed Sequence',
+                r'Bonferroni',
+                r'Uniform'
+             )
 
     colors = ('#C18268',
               '#B4926D',
-              '#C1DAFF',
               '#DAFFC1',
               '#4A7087',
-              '#887D82',
-              '#7E8F91',
-              '#91562D')
+              '#7E8F91'
+             )
     
     #ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
     ax.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
@@ -309,7 +312,7 @@ if __name__ == "__main__":
     downsample_factor = 10
 
     for peak in peaks:
-        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4,len(corrs)*4))
+        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+1,len(corrs)*4+1))
         for i in reversed(range(len(alphas))):
             for j in reversed(range(len(corrs))):
                 plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
@@ -323,6 +326,6 @@ if __name__ == "__main__":
                 axs[i,j].set_yticklabels([0,.25,.5], fontsize=15)
 
         if peak == peaks[-1]:
-            axs[len(alphas)-1,len(corrs)-1].legend(loc='upper right', fontsize=15)
+            axs[len(alphas)-1,len(corrs)-1].legend(fontsize=15, bbox_to_anchor=[0.5,0.5])
         plt.xlim(left=0.2,right=0.8)
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
