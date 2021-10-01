@@ -32,7 +32,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
         region_name = df["region name"][0].replace('_', ' ')
         axs[1].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True, label=region_name)
     
-    axs[0].set_xlabel(r'$-\lambda$')
+    axs[0].set_xlabel(r'$\lambda$')
     axs[0].legend()
     axs[1].set_xlabel('pFDP')
     axs[1].locator_params(axis='x', nbins=4)

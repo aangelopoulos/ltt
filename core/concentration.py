@@ -317,15 +317,15 @@ if __name__ == "__main__":
             for j in reversed(range(len(corrs))):
                 plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
                 if i == 0:
-                    axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=20)
+                    axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=30)
                 if j == 0:
-                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=20)
+                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=30)
                 axs[i,j].set_xticks([.2,.5,.8])
-                axs[i,j].set_xticklabels([.2,.5,.8], fontsize=15)
+                axs[i,j].set_xticklabels([.2,.5,.8], fontsize=25)
                 axs[i,j].set_yticks([0,.25,.5])
-                axs[i,j].set_yticklabels([0,.25,.5], fontsize=15)
+                axs[i,j].set_yticklabels([0,.25,.5], fontsize=25)
 
         if peak == peaks[-1]:
-            axs[len(alphas)-1,len(corrs)-1].legend(fontsize=15, bbox_to_anchor=[0.5,0.5])
+            axs[len(alphas)-1,len(corrs)-1].legend(fontsize=18, bbox_to_anchor=[0.5,0.5])
         plt.xlim(left=0.2,right=0.8)
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
