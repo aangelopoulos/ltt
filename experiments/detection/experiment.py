@@ -17,16 +17,20 @@ import pdb
 
 import seaborn as sns
 
-def plot(df,alphas):
+def plot(df_list,alphas,methods):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
 
-    axs[0].hist(df['recall'], alpha=0.7)
-    axs[1].hist(df['mIOU'], alpha=0.7)
-    axs[2].hist(df['mean coverage'], alpha=0.7)
-    violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
-    print(f'The fraction of violations is {violations.mean()}')
+    for i in range(len(df_list)):
+        method = methods[i]
+        df = df_list[i]
+        axs[0].hist(df['recall'], alpha=0.7)
+        axs[1].hist(df['mIOU'], alpha=0.7)
+        axs[2].hist(df['mean coverage'], alpha=0.7, label=method)
+        violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
+        print(f'{method}: fraction of violations is {violations.mean()}')
 
     # Limits, lines, and labels
+    axs[2].legend()
     axs[2].set_ylabel('Density')
     axs[2].set_xlabel('Mean Coverage')
     axs[2].axvline(x=1-alphas[0],c='#999999',linestyle='--',alpha=0.7)
@@ -91,7 +95,6 @@ def split_fixed_sequence(calib_tables, alphas, delta):
 
     _, idx = np.unique(lambda_sequence, return_index=True)
     lambda_sequence_ordered = lambda_sequence[np.sort(idx)]
-    pdb.set_trace()
 
     # Now test these lambdas 
     fine_tables = fine_tables.flatten(start_dim=2)[:,:,lambda_sequence_ordered]
@@ -160,7 +163,9 @@ if __name__ == "__main__":
     manager = mp.Manager()
     loss_tables = manager.dict({"tensor": None, "curr_proc": 0})
 
-    for method in ["Bonferroni", "Split Fixed Sequence"]:
+    df_list = []
+    methods = ["Bonferroni", "Split Fixed Sequence"]
+    for method in methods:
         fname = f'./.cache/{method}_{alphas}_{delta}_{num_calib}_{num_trials}_dataframe.pkl'
         try:
             df = pd.read_pickle(fname)
@@ -215,7 +220,8 @@ if __name__ == "__main__":
                     local_df_list = local_df_list + [df_local]
                 df = pd.concat(local_df_list, axis=0, ignore_index=True)
                 df.to_pickle(fname)
+        df_list = df_list + [df,] 
         average_lambda = np.concatenate([arr[None,:] for arr in df["$\\hat{\\lambda}$"].tolist()],axis=0).mean(axis=0)
         print(f"{method}: the average lambda_hat from the runs was: {list(average_lambda)}!")
-        plot(df,alphas)
-        print("Done!")
+    plot(df_list,alphas,methods)
+    print("Done!")
