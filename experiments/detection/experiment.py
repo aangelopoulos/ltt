@@ -24,7 +24,7 @@ def plot(df_list,alphas,methods):
         method = methods[i]
         df = df_list[i]
         axs[0].hist(df['recall'], alpha=0.7)
-        axs[1].hist(df['mIOU'], alpha=0.7)
+        axs[1].hist(df['mIOU'], bins=15, alpha=0.7)
         axs[2].hist(df['mean coverage'], alpha=0.7, label=method)
         violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
         print(f'{method}: fraction of violations is {violations.mean()}')
