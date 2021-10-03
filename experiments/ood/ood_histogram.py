@@ -28,23 +28,29 @@ global_dict = {"loss_tables": None}
 
 def plot_histograms(df_list,alphas,delta):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
+    coverages = []
+    oodt1s = []
+    labels = []
     for df in df_list:
         region_name = df['region name'][0]
-        axs[0].hist(df['coverage'], alpha=0.7)
-        axs[1].hist(df['OOD Type I'], alpha=0.7)
+        coverages = coverages + [df['coverage'],]
+        oodt1s = oodt1s + [df['OOD Type I'],]
+        labels = labels + [region_name,]
         axs[2].scatter(1-df['coverage'],df['OOD Type I'], alpha=0.7, label=region_name)
         fraction_violated = ((df['coverage'] < 1-alphas[1]) | (df['OOD Type I'] > alphas[0])).astype(float).mean()
         print(f"Fraction violated (at least one risk) using {region_name}: {fraction_violated}")
+    sns.violinplot(data=coverages,ax=axs[0],orient='h',inner=None)
+    sns.violinplot(data=oodt1s,ax=axs[1],orient='h',inner=None)
+
     # Limits, lines, and labels
-    axs[0].set_ylabel("Histogram Density")
+    #axs[0].set_ylabel("Histogram Density")
     axs[0].set_xlabel("Coverage")
     axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
     axs[0].locator_params(axis="x", nbins=4)
-    axs[0].locator_params(axis="y", nbins=4)
+    axs[0].set_yticklabels(labels,rotation=30)
     axs[1].set_xlabel("CIFAR marked OOD")
     axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
     axs[1].locator_params(axis="x", nbins=4)
-    axs[1].locator_params(axis="y", nbins=4)
     axs[2].axvline(x=alphas[1],c='#999999', linestyle='--', alpha=0.7)
     axs[2].axhline(y=alphas[0],c='#999999', linestyle='--', alpha=0.7)
     axs[2].legend(loc='lower left')

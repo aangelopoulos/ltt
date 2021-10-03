@@ -114,21 +114,28 @@ def plot_histograms(df_list,alpha,delta):
     lofb = sizes.min() - float(d)/2
     rolb = sizes.max() + float(d)/2
 
+    fdr_arrays = []
+    sizes_arrays = []
+    labels = []
     for i in range(len(df_list)):
         df = df_list[i]
-        fdrs = df['FDR'][df['FDR'] > alpha/2]
-        #fdrs = df['FDR']
-        axs[0].hist(np.array(fdrs.tolist()), None, alpha=0.7, density=True)
+        #fdrs = df['FDR'][df['FDR'] > alpha/2]
+        fdrs = df['FDR']
+        fdr_arrays = fdr_arrays + [np.array(fdrs.tolist()),]
 
         # Sizes will be 10 times as big as recall, since we pool it over runs.
         sizes = torch.cat(df['sizes'].tolist(),dim=0).numpy()
-        axs[1].hist(sizes, np.arange(lofb,rolb+d, d), alpha=0.7, density=True, label=df['region name'][0])
+        sizes_arrays = sizes_arrays + [sizes,]
+        labels = labels + [df['region name'][0],]
+    sns.violinplot(data=fdr_arrays, ax=axs[0],orient='h',inner=None)
+    sns.violinplot(data=sizes_arrays, ax=axs[1],orient='h',inner=None)
     
     axs[0].set_xlabel('FDR')
     axs[0].locator_params(axis='x', nbins=4)
-    axs[0].set_ylabel('density')
+    axs[0].set_yticklabels(labels,rotation=30)
     axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
     axs[1].set_xlabel('size')
+    axs[1].set_yticks([])
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     axs[1].legend()

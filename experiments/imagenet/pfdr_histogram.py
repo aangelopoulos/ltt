@@ -22,22 +22,26 @@ import pdb
 def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
 
-    axs[0].plot(lambdas,pfdps,color='k',linewidth=3,label='pFDP')
-    axs[0].plot(lambdas,frac_predict,color='g',linewidth=3,label='avg size')
+    axs[1].plot(lambdas,pfdps,color='k',linewidth=3,label='pFDP')
+    axs[1].plot(lambdas,frac_predict,color='g',linewidth=3,label='avg size')
 
+    pfdps = []
+    labels = []
     for i in range(len(df_list)):
         df = df_list[i]
         if df.pFDP.sum() <= 1e-3:
             continue
         region_name = df["region name"][0].replace('_', ' ')
-        axs[1].hist(np.array(df['pFDP'].tolist()), None, alpha=0.7, density=True, label=region_name)
+        pfdps = pfdps + [np.array(df['pFDP'].tolist()),]
+        labels = labels + [region_name,]
+
+    sns.violinplot(data=pfdps, ax=axs[0], orient='h', inner=None)
     
-    axs[0].set_xlabel(r'$\lambda$')
-    axs[0].legend()
-    axs[1].set_xlabel('pFDP')
-    axs[1].locator_params(axis='x', nbins=4)
-    axs[1].set_ylabel('density')
-    axs[1].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    axs[0].set_xlabel('pFDP')
+    axs[0].locator_params(axis='x', nbins=4)
+    axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    axs[0].set_yticklabels(labels,rotation=30)
+    axs[1].set_xlabel(r'$\lambda$')
     axs[1].legend()
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)

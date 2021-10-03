@@ -312,7 +312,7 @@ if __name__ == "__main__":
     downsample_factor = 10
 
     for peak in peaks:
-        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+1,len(corrs)*4+1))
+        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+8,len(corrs)*4))
         for i in reversed(range(len(alphas))):
             for j in reversed(range(len(corrs))):
                 plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
@@ -325,7 +325,7 @@ if __name__ == "__main__":
                 axs[i,j].set_yticks([0,.25,.5])
                 axs[i,j].set_yticklabels([0,.25,.5], fontsize=25)
 
-        if peak == peaks[-1]:
-            axs[len(alphas)-1,len(corrs)-1].legend(fontsize=18, bbox_to_anchor=[0.5,0.5])
+        axs[len(alphas)-1,len(corrs)-1].legend(fontsize=25, bbox_to_anchor=[1.2,1])
         plt.xlim(left=0.2,right=0.8)
+        plt.subplots_adjust(left=None, bottom=None, right=0.7, top=None, wspace=None, hspace=None)
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")

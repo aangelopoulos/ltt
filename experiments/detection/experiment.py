@@ -20,18 +20,25 @@ import seaborn as sns
 def plot(df_list,alphas,methods):
     fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
 
+    recalls = []
+    mious = []
+    mcvgs = []
+    labels = []
     for i in range(len(df_list)):
         method = methods[i]
         df = df_list[i]
-        axs[0].hist(df['recall'], alpha=0.7)
-        axs[1].hist(df['mIOU'], bins=15, alpha=0.7)
-        axs[2].hist(df['mean coverage'], alpha=0.7, label=method)
+        recalls = recalls + [df['recall'],]
+        mious = mious + [df['mIOU'],]
+        mcvgs = mcvgs + [df['mean coverage'],]
+        labels = labels + [method,]
         violations = (df['mean coverage'] < (1-alphas[0])) | (df['mIOU'] < (1-alphas[1])) | (df['recall']< (1-alphas[2]))
         print(f'{method}: fraction of violations is {violations.mean()}')
 
+    sns.violinplot(data=recalls,ax=axs[0],orient='h',inner=None)
+    sns.violinplot(data=mious,ax=axs[1],orient='h',inner=None)
+    sns.violinplot(data=mcvgs,ax=axs[2],orient='h',inner=None)
+
     # Limits, lines, and labels
-    axs[2].legend()
-    axs[2].set_ylabel('Density')
     axs[2].set_xlabel('Mean Coverage')
     axs[2].axvline(x=1-alphas[0],c='#999999',linestyle='--',alpha=0.7)
     axs[2].locator_params(axis='x',nbins=4)
@@ -44,6 +51,7 @@ def plot(df_list,alphas,methods):
     axs[0].axvline(x=1-alphas[2],c='#999999',linestyle='--',alpha=0.7)
     axs[0].locator_params(axis='x',nbins=4)
     axs[0].locator_params(axis='y',nbins=4)
+    axs[0].set_yticklabels(labels,rotation=30)
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     sns.despine(ax=axs[2],top=True,right=True)
