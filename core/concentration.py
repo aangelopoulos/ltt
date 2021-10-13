@@ -255,25 +255,16 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
     R_multiscale_bonferroni_HB = multiscale_bonferroni_HB(loss_table,lambdas,alpha,delta)
     R_multiscale_bonferroni_search_HB = multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor)
 
-    Rs = (R_naive, 
-         )
-
-    #labels = (r'Empirical risk < $\alpha$',
-    #         )
-
-    #colors = ('#C18268',
-    #         )
-
-    Rs = (R_naive, 
+    Rs = [R_naive, 
             R_RW_bootstrap, 
             R_bonferroni_search_HB,
             R_bonferroni_HB,
             R_uniform,
-         )
+         ] 
 
-    labels = (r'Empirical risk < $\alpha$',
-                r'Multiplier Bootstrap',
-                r'Fixed Sequence',
+    labels = ("Empirical \nrisk" + r' < $\alpha$',
+                'Multiplier\nBootstrap',
+                'Fixed\nSequence',
                 r'Bonferroni',
                 r'Uniform'
              )
@@ -285,17 +276,13 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
               '#7E8F91'
              )
     
-    #ax.plot(lambdas,loss_table[0:8,:].T,alpha=0.3,color='#73D673') # Sample losses
-    ax.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
-    ax.axhline(alpha,xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
-
-    # Sets
     for i in range(len(Rs)):
-        if len(Rs[i]) == 0:
-            print("Empty region:" + labels[i])
-        else:
-            ax.hlines(-0.04*(i+1),xmin=lambdas[min(Rs[i])],xmax=lambdas[max(Rs[i])],linewidth=3,color=colors[i],label=labels[i])
-            ax.vlines((lambdas[min(Rs[i])],lambdas[max(Rs[i])]),ymin=-0.04*(i+1)-0.02,ymax=-0.04*(i+1)+0.02,linewidth=3,color=colors[i])
+        if len(Rs[i])==0:
+            Rs[i] = np.array([0,])
+
+    endpoints = lambdas[[R.max() for R in Rs]]
+    
+    sns.barplot(x=np.array(labels),y=endpoints, ax=ax, alpha=0.7)
 
     # Finish
     sns.despine(top=True,right=True)
@@ -312,7 +299,7 @@ if __name__ == "__main__":
     downsample_factor = 10
 
     for peak in peaks:
-        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+8,len(corrs)*4))
+        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+16,len(corrs)*4+4))
         for i in reversed(range(len(alphas))):
             for j in reversed(range(len(corrs))):
                 plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
@@ -320,12 +307,20 @@ if __name__ == "__main__":
                     axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=30)
                 if j == 0:
                     axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=30)
-                axs[i,j].set_xticks([.2,.5,.8])
-                axs[i,j].set_xticklabels([.2,.5,.8], fontsize=25)
-                axs[i,j].set_yticks([0,.25,.5])
-                axs[i,j].set_yticklabels([0,.25,.5], fontsize=25)
+                xticklabels = axs[i,j].get_xticklabels()
+                plt.setp(xticklabels, rotation=45, fontsize=25)
+                yticklabels = axs[i,j].get_yticklabels()
+                plt.setp(yticklabels, fontsize=25)
 
-        axs[len(alphas)-1,len(corrs)-1].legend(fontsize=25, bbox_to_anchor=[1.2,1])
-        plt.xlim(left=0.2,right=0.8)
-        plt.subplots_adjust(left=None, bottom=None, right=0.7, top=None, wspace=None, hspace=None)
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
+        # Now plot true signal
+        plt.figure()
+        signal = np.concatenate((np.linspace(peak,alphas[i]/4,int(np.floor(N/2))),np.linspace(alphas[i]/4,peak,int(np.ceil(N/2)))),axis=0)
+        lambdas = np.linspace(0,1,N)
+        plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
+        plt.gca().axhline(alphas[i],xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
+        plt.xlabel(r'$\lambda$')
+        plt.ylabel('True Risk')
+        #plt.xlim(left=0.2,right=0.8)
+        sns.despine(top=True,right=True)
+        plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_true_mean.pdf")
