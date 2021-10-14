@@ -10,7 +10,7 @@ from statsmodels.stats.multitest import multipletests
 import pdb
 from pathlib import Path
 import pickle as pkl
-from utils import *
+from core.utils import *
 from core.bounds import hb_p_value, HB_mu_plus, HB_mu_minus
 from core.uniform_concentration import nu_plus
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
