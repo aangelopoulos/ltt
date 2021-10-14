@@ -203,11 +203,11 @@ def uniform_region(loss_table,lambdas,alpha,delta,m):
     sig_figs = int(np.ceil(np.log10(lambdas.shape[0])))
     for i in range(starting_index,ending_index):
         rounded_empirical_risk = np.ceil(r_hats[i] * 10**sig_figs)/(10**sig_figs)#To make more efficient caching
-        if nu_plus(loss_table.shape[0], m, rounded_empirical_risk, delta, 20, lambdas.shape[0]) < alpha:
+        if nu_plus(loss_table.shape[0], m, rounded_empirical_risk, alpha, delta, 20, lambdas.shape[0]) < alpha:
             break
     for j in reversed(range(i,ending_index)):
         rounded_empirical_risk = np.ceil(r_hats[j] * 10**sig_figs)/(10**sig_figs)#To make more efficient caching
-        if nu_plus(loss_table.shape[0], m, np.round(r_hats[j],sig_figs), delta, 20, lambdas.shape[0]) < alpha:
+        if nu_plus(loss_table.shape[0], m, np.round(r_hats[j],sig_figs), alpha, delta, 20, lambdas.shape[0]) < alpha:
             break
     if i == j:
         R = np.array([])
@@ -231,7 +231,7 @@ def AR_Noise_Process(signal,alpha,n,N,corr):
     u = np.random.normal(loc=0,scale=np.sqrt(sigma2),size=n)
     for j in range(N):
         loss_table[:,j] = stats.norm.cdf(u + mus[j])
-        u = corr*u + np.random.normal(loc=0,scale=1,size=n)
+        u = corr*u + np.sqrt(1-(corr*corr))*np.random.normal(loc=0,scale=1,size=n)
     return loss_table
 
 """
@@ -262,7 +262,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
             R_uniform,
          ] 
 
-    labels = ("Empirical \nrisk" + r' < $\alpha$',
+    labels = (  "Empirical \nrisk" + r' < $\alpha$',
                 'Multiplier\nBootstrap',
                 'Fixed\nSequence',
                 r'Bonferroni',
@@ -294,7 +294,7 @@ if __name__ == "__main__":
     delta = 0.1
     alphas = (0.1, 0.15, 0.2)
     # Define the correlation of the AR noise process
-    corrs = (0.99, 0.95, 0.90)
+    corrs = (0.90, 0.80, 0.70)
     peaks = (0.8,0.4)
     downsample_factor = 10
 
@@ -307,6 +307,7 @@ if __name__ == "__main__":
                     axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=30)
                 if j == 0:
                     axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=30)
+                axs[i,j].set_ylim(bottom=0.5, top=None)
                 xticklabels = axs[i,j].get_xticklabels()
                 plt.setp(xticklabels, rotation=45, fontsize=25)
                 yticklabels = axs[i,j].get_yticklabels()

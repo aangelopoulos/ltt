@@ -119,7 +119,7 @@ def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=
     starting_index = (s_arr < alpha).nonzero()[0][0]
     ending_index = (s_arr < alpha).nonzero()[0][-1]
 
-    upper_bounds_arr = np.array([ nu_plus(n, m, s, delta, maxiter, num_grid_points) for s in s_arr[starting_index:min((ending_index+1),N)] ])
+    upper_bounds_arr = np.array([ nu_plus(n, m, s, alpha, delta, maxiter, num_grid_points) for s in s_arr[starting_index:min((ending_index+1),N)] ])
     R = np.nonzero(upper_bounds_arr < alpha)[0] + starting_index
     return R
 

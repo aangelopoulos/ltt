@@ -38,6 +38,7 @@ def expand_grid(arr1,arr2):
     return params[1].T.flatten(), params[0].T.flatten()
 
 # Get t
+# Equation 12 in Lihua's note 
 def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
@@ -51,11 +52,11 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None)
         log_denom = np.log(np.maximum(0,fac1,fac2))
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / kappa)
-        Delta = np.log(m*(n + n_p) + 1)
-        # If the grid is fixed, Delta changes.
+        log_Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, log_Delta changes.
         if num_grid_points != None:
-            Delta = np.log(num_grid_points)
-        log_prob_bardenet = safe_min(Delta - g2 - log_denom)
+            log_Delta = np.log(num_grid_points)
+        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
         gauss = 1-stats.norm.cdf(tmp)
@@ -68,6 +69,7 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None)
 
     return brentq(_tailprob,0,1,maxiter=maxiter) 
 
+# Equation 11 in Lihua's note.
 def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
@@ -81,11 +83,11 @@ def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=None
         log_denom = np.log(np.maximum(0,fac1,fac2))
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / eta)
-        Delta = np.log(m*(n + n_p) + 1)
-        # If the grid is fixed, Delta changes.
+        log_Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, log_Delta changes.
         if num_grid_points != None:
-            Delta = np.log(num_grid_points)
-        log_prob_bardenet = safe_min(Delta - g2 - log_denom)
+            log_Delta = np.log(num_grid_points)
+        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
         gauss = 1-stats.norm.cdf(tmp)
@@ -119,14 +121,11 @@ def shat_lower_tail(s, n, m, delta, eta, maxiter, num_grid_points=None):
 
 # General upper and lower bounds
 @cacheable
-def nu_plus(n, m, nu, delta, maxiter, num_grid_points):
-    eta_star = get_eta_star_upper(n, m, nu, delta, 20, num_grid_points=num_grid_points)
+def nu_plus(n, m, nu, alpha, delta, maxiter, num_grid_points):
+    eta_star = get_eta_star_upper(n, m, alpha, delta, 20, num_grid_points=num_grid_points)
     t = normalized_vapnik_tail_upper(n, m, delta, eta_star, maxiter, num_grid_points=num_grid_points)
-    def _condition(nu_plus):
-        return nu - (nu_plus - t * np.sqrt(nu_plus + eta_star))
     try:
-        #nu_plus = nu + t * np.sqrt(nu + eta_star + (t**2)/4) + (t**2)/2
-        nu_plus = brentq(_condition,-0.1,1.1,maxiter=maxiter)
+        nu_plus = nu + t*np.sqrt(nu + eta_star + (t*t)/4) + (t*t)/2 
         nu_plus = min(max(nu_plus,0),1)
     except:
         print("Warning: setting nu_plus to 1 due to failed search")
@@ -134,8 +133,8 @@ def nu_plus(n, m, nu, delta, maxiter, num_grid_points):
     return nu_plus 
 
 @cacheable
-def r_minus(n, m, r, delta, maxiter, num_grid_points):
-    eta_star = get_eta_star_upper(n, m, r, delta, 20, num_grid_points=num_grid_points)
+def r_minus(n, m, r, alpha, delta, maxiter, num_grid_points):
+    eta_star = get_eta_star_upper(n, m, alpha, delta, 20, num_grid_points=num_grid_points)
     t2 = normalized_vapnik_tail_lower(n, m, delta, eta_star, maxiter, num_grid_points=num_grid_points)
     r_minus = r - t2*np.sqrt(max(r+eta_star, 0))
     return r_minus 
@@ -147,25 +146,27 @@ def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
     fname = f'eta_star_{n}_{alpha:.2f}_{delta:.2f}'
     fpath = CACHE+fname+'.npy'
     if os.path.exists( fpath ):
-        return np.load( fpath )
+        eta_star = np.load( fpath )
     else:
         print(f"Computing eta_star for {n}, {alpha:.2f}, {delta:.2f}")
-        eta_grid = np.logspace(-5,1,20)
+        eta_grid = np.logspace(-20,1,50)
         best_x = 0
         eta_star = 1
         for eta in eta_grid:
             try:
                 t = normalized_vapnik_tail_upper(n, m, delta, eta, 20, num_grid_points=num_grid_points)
-                x = alpha - t * np.sqrt(alpha + eta) 
+                x = alpha - t*np.sqrt(alpha + eta) 
                 if x >= best_x:
                     best_x = x
                     eta_star = eta
             except:
                 pass
+        print(f"ETA STAR: {eta_star}")
         os.makedirs(CACHE, exist_ok=True)
         np.save( fpath, eta_star )
 
-        return eta_star
+    print(f"Eta star: {eta_star}")
+    return eta_star
 
 if __name__ == "__main__":
     s = 0.2

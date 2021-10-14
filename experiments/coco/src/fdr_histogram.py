@@ -138,7 +138,6 @@ def plot_histograms(df_list,alpha,delta):
     axs[1].set_yticks([])
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
-    axs[1].legend()
     plt.tight_layout()
     plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_histograms').replace('.','_') + '.pdf')
 
