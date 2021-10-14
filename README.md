@@ -26,7 +26,7 @@ Then you will need to edit the file
 ```
 ~/anaconda3/envs/detectron2/lib/python3.8/site-packages/detectron2/modeling/postprocessing.py
 ```
-to add the following on line 68:
+to add the following on line 67 (see the file experiments/detection/postprocessing.py):
 ```
 results.roi_masks = roi_masks
 ```
