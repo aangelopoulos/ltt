@@ -1,5 +1,5 @@
 import os, sys, inspect
-sys.path.insert(1, os.path.join(sys.path[0], '../'))
+sys.path.insert(1, os.path.join(os.path.abspath(os.path.dirname(__file__)), '../'))
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt 
