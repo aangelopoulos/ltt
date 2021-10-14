@@ -28,7 +28,7 @@ from UQHeads import UQHeads
 import pdb
 from tqdm import tqdm
 
-if __name__ == "__main__":
+def cache_data():
     with torch.no_grad():
         # Evaluations
         annType = ['segm','bbox','keypoints']
@@ -130,12 +130,5 @@ if __name__ == "__main__":
         plt.imshow(out.get_image()[:, :, ::-1])
         plt.savefig('output.jpg')
 
-    # TODO:  See https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
-    # running evaluation
-    #cocoEval = COCOeval(cocoGt,cocoDt,annType)
-    #cocoEval.params.imgIds  = imgIds
-    #cocoEval.evaluate()
-    #cocoEval.accumulate()
-    #cocoEval.summarize()
-
-
+if __name__ == "__main__":
+    cache_data()
