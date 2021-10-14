@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import os, gc, time, json, cv2, random, sys, traceback
-from utils import *
+from experiments.detection.utils import *
 from core.bounds import hb_p_value
 from core.concentration import *
 
