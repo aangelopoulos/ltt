@@ -1,4 +1,4 @@
-name: fdrcps 
+name: ltt 
 channels:
     - anaconda
     - conda-forge
