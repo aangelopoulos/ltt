@@ -17,7 +17,6 @@ from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog, DatasetCatalog
-from visualizer import Visualizer
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import pycocotools.mask as maskUtils
@@ -121,14 +120,6 @@ def cache_data():
 
         with open('./.cache/gt_masks.pkl', 'wb') as f:
             pkl.dump(gt_masks, f)
-
-        # We can use `Visualizer` to draw the predictions on the image.
-        v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-
-        plt.figure()
-        plt.imshow(out.get_image()[:, :, ::-1])
-        plt.savefig('output.jpg')
 
 if __name__ == "__main__":
     cache_data()
