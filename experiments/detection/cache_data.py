@@ -22,7 +22,10 @@ from pycocotools.cocoeval import COCOeval
 import pycocotools.mask as maskUtils
 import pickle as pkl
 
-from .UQHeads import UQHeads
+try:
+    from .UQHeads import UQHeads
+except:
+    from UQHeads import UQHeads
 
 import pdb
 from tqdm import tqdm
