@@ -11,7 +11,6 @@
 [If you see this note, congratulations---you're here early!  I haven't yet publicized this paper, but I needed the repo to be public :) Nonetheless, you should be able to run the code if you really want to!]
 
 This repository will allow you to reproduce the experiments in the Learn then Test paper.
-Soon, I will add a colab notebook to this repository as well.
 For now, please e-mail me if you have trouble reproducing our results.
 
 To install the dependencies for our experiments, run the following command from the root directory of the repository:
