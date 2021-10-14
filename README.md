@@ -1,4 +1,4 @@
-# fdrcps
+# Learn then Test
 For the detectron code, after pip install detectron, execute
 ```
 vim ~/anaconda3/envs/detectron2/lib/python3.8/site-packages/detectron2/modeling/postprocessing.py
