@@ -65,7 +65,7 @@ def detector_postprocess(
         else:
             # pred_masks is a tensor of shape (N, 1, M, M)
             roi_masks = ROIMasks(results.pred_masks[:, 0, :, :])
-            results.roi_masks = roi_masks
+        results.roi_masks = roi_masks
         results.pred_masks = roi_masks.to_bitmasks(
             results.pred_boxes, output_height, output_width, mask_threshold
         ).tensor  # TODO return ROIMasks/BitMask object in the future
