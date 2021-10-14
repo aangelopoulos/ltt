@@ -3,13 +3,18 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import os, json, cv2, random, sys, traceback
-from utils import *
 
 import multiprocessing as mp
 
 import pickle as pkl
 from tqdm import tqdm
 import pdb
+
+def fix_randomness(seed=0):
+    np.random.seed(seed=seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    random.seed(seed)
 
 def get_loss_tables():
     print("Getting the loss tables!")
