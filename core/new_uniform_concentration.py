@@ -38,7 +38,6 @@ def expand_grid(arr1,arr2):
     return params[1].T.flatten(), params[0].T.flatten()
 
 # Get t
-# Equation 12 in Lihua's note 
 def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
@@ -52,11 +51,11 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None)
         log_denom = np.log(np.maximum(0,fac1,fac2))
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / kappa)
-        log_Delta = np.log(m*(n + n_p) + 1)
-        # If the grid is fixed, log_Delta changes.
+        Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, Delta changes.
         if num_grid_points != None:
-            log_Delta = np.log(num_grid_points)
-        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
+            Delta = np.log(num_grid_points)
+        log_prob_bardenet = safe_min(Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
         gauss = 1-stats.norm.cdf(tmp)
@@ -69,7 +68,6 @@ def normalized_vapnik_tail_upper(n, m, delta, eta, maxiter,num_grid_points=None)
 
     return brentq(_tailprob,0,1,maxiter=maxiter) 
 
-# Equation 11 in Lihua's note.
 def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=None):
     c1 = np.log(1 / 4 / (1-stats.norm.cdf(np.sqrt(2))) )
     c2 = 5 * np.sqrt( 2*np.pi*np.exp(1) ) * ( 2*stats.norm.cdf(1) - 1)
@@ -83,11 +81,11 @@ def normalized_vapnik_tail_lower(n, m, delta, eta, maxiter, num_grid_points=None
         log_denom = np.log(np.maximum(0,fac1,fac2))
 
         g2 = n/(1 + n/n_p)**2  * x**2/2 * (1 - gamma)**2/(1 + (1 - gamma)**2 * x**2 / 36 / eta)
-        log_Delta = np.log(m*(n + n_p) + 1)
-        # If the grid is fixed, log_Delta changes.
+        Delta = np.log(m*(n + n_p) + 1)
+        # If the grid is fixed, Delta changes.
         if num_grid_points != None:
-            log_Delta = np.log(num_grid_points)
-        log_prob_bardenet = safe_min(log_Delta - g2 - log_denom)
+            Delta = np.log(num_grid_points)
+        log_prob_bardenet = safe_min(Delta - g2 - log_denom)
 
         tmp = np.sqrt(n * (1 + eta)/2) * (1-gamma) * x
         gauss = 1-stats.norm.cdf(tmp)
@@ -127,6 +125,7 @@ def nu_plus(n, m, nu, delta, maxiter, num_grid_points):
     def _condition(nu_plus):
         return nu - (nu_plus - t * np.sqrt(nu_plus + eta_star))
     try:
+        #nu_plus = nu + t * np.sqrt(nu + eta_star + (t**2)/4) + (t**2)/2
         nu_plus = brentq(_condition,-0.1,1.1,maxiter=maxiter)
         nu_plus = min(max(nu_plus,0),1)
     except:
@@ -157,7 +156,7 @@ def get_eta_star_upper(n, m, alpha, delta, maxiter, num_grid_points=None):
         for eta in eta_grid:
             try:
                 t = normalized_vapnik_tail_upper(n, m, delta, eta, 20, num_grid_points=num_grid_points)
-                x = 0.5*(t*np.sqrt(max(4*alpha+4*eta+t*t, 0)) + 2*alpha + t*t)
+                x = alpha - t * np.sqrt(alpha + eta) 
                 if x >= best_x:
                     best_x = x
                     eta_star = eta
