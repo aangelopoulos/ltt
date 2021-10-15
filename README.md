@@ -8,8 +8,6 @@
 
 </p>
 
-[If you see this note, congratulations---you're here early!  I haven't yet publicized this paper, but I needed the repo to be public :) Nonetheless, you should be able to run the code if you really want to!]
-
 This repository will allow you to reproduce the experiments in the Learn then Test paper.
 For now, please e-mail me if you have trouble reproducing our results.
 
