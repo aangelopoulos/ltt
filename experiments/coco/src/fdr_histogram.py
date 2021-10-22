@@ -49,7 +49,7 @@ def get_lhat_from_table(calib_loss_table, lambdas_table, alpha_plus):
     for i in reversed(range(1, len(lambdas_table))):
         fdr = fdrs[i]
         if fdr <= alpha_plus:
-            return lambdas_table[(-i+1)] #TODO: FIX TODO: FIX TODO: FIX i+2 ; one of the +1 comes from the overshoot of Rhat + t, and the other from 0-indexing. 
+            return lambdas_table[(-i+1)] 
 
     return lambdas_table[0]
 
@@ -128,13 +128,17 @@ def plot_histograms(df_list,alpha,delta):
         sizes_arrays = sizes_arrays + [sizes,]
         labels = labels + [df['region name'][0],]
     sns.violinplot(data=fdr_arrays, ax=axs[0],orient='h',inner=None)
-    sns.violinplot(data=sizes_arrays, ax=axs[1],orient='h',inner=None)
+    sns.boxplot(data=sizes_arrays, ax=axs[1], orient='h',fliersize=0)
+    #sns.boxenplot(data=sizes_arrays, ax=axs[1], orient='h')
+
+    #sns.violinplot(data=sizes_arrays, ax=axs[1],orient='h',inner=None)
     
     axs[0].set_xlabel('FDR')
     axs[0].locator_params(axis='x', nbins=4)
-    axs[0].set_yticklabels(labels,rotation=30)
+    axs[0].set_yticklabels(labels)
     axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
     axs[1].set_xlabel('size')
+    axs[1].xaxis.get_major_locator().set_params(integer=True)
     axs[1].set_yticks([])
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
@@ -241,7 +245,7 @@ if __name__ == "__main__":
             return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=loss_table.shape[1])
 
         rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap )
-        rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence (Multi-Start)', 'Fixed Sequence', 'Multiplier Bootstrap' )
+        rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence', 'Multiplier\nBootstrap' )
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 

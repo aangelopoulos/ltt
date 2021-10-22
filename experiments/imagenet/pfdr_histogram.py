@@ -31,7 +31,11 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
         df = df_list[i]
         if df.pFDP.sum() <= 1e-3:
             continue
-        region_name = df["region name"][0].replace('_', ' ')
+        region_name = df["region name"][0]
+        if region_name == "Multiplier Bootstrap":
+            region_name = "Multiplier\nBootstrap"
+        if region_name == "Fixed Sequence (Multi-Start)":
+            region_name = "Fixed Sequence\n(Multi-Start)"
         pfdps = pfdps + [np.array(df['pFDP'].tolist()),]
         labels = labels + [region_name,]
 
@@ -40,7 +44,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     axs[0].set_xlabel('pFDP')
     axs[0].locator_params(axis='x', nbins=4)
     axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
-    axs[0].set_yticklabels(labels,rotation=30)
+    axs[0].set_yticklabels(labels)
     axs[1].set_xlabel(r'$\lambda$')
     axs[1].legend()
     sns.despine(ax=axs[0],top=True,right=True)
@@ -83,7 +87,7 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
     def monotonic_pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta):
         return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=lambdas.shape[0])
     rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB, pfdr_romano_wolf_multiplier_bootstrap) 
-    rejection_region_names = ("Uniform","Bonferroni","Fixed Sequence (Multi-Start)","Fixed Sequence","Multiplier Bootstrap")
+    rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence",'Multiplier\nBootstrap')
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]

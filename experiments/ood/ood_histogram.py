@@ -33,6 +33,8 @@ def plot_histograms(df_list,alphas,delta):
     labels = []
     for df in df_list:
         region_name = df['region name'][0]
+        if region_name == "2D Fixed Sequence":
+            region_name = '2D Fixed\nSequence'
         coverages = coverages + [df['coverage'],]
         oodt1s = oodt1s + [df['OOD Type I'],]
         labels = labels + [region_name,]
@@ -47,7 +49,7 @@ def plot_histograms(df_list,alphas,delta):
     axs[0].set_xlabel("Coverage")
     axs[0].axvline(x=1-alphas[1],c='#999999',linestyle='--',alpha=0.7)
     axs[0].locator_params(axis="x", nbins=4)
-    axs[0].set_yticklabels(labels,rotation=30)
+    axs[0].set_yticklabels(labels)
     axs[1].set_xlabel("CIFAR marked OOD")
     axs[1].axvline(x=alphas[0],c='#999999',linestyle='--',alpha=0.7)
     axs[1].locator_params(axis="x", nbins=4)

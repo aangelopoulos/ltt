@@ -26,6 +26,8 @@ def plot(df_list,alphas,methods):
     labels = []
     for i in range(len(df_list)):
         method = methods[i]
+        if method == "Split Fixed Sequence":
+            method = "Split Fixed\nSequence"
         df = df_list[i]
         recalls = recalls + [df['recall'],]
         mious = mious + [df['mIOU'],]
@@ -51,7 +53,7 @@ def plot(df_list,alphas,methods):
     axs[0].axvline(x=1-alphas[2],c='#999999',linestyle='--',alpha=0.7)
     axs[0].locator_params(axis='x',nbins=4)
     axs[0].locator_params(axis='y',nbins=4)
-    axs[0].set_yticklabels(labels,rotation=30)
+    axs[0].set_yticklabels(labels)
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     sns.despine(ax=axs[2],top=True,right=True)
