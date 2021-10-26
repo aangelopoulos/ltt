@@ -244,8 +244,10 @@ if __name__ == "__main__":
         def _multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta):
             return multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=loss_table.shape[1])
 
-        rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap )
-        rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence', 'Multiplier\nBootstrap' )
+        rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1 )
+        #rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1, romano_wolf_multiplier_bootstrap )
+        rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence' )
+        #rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence', 'Multiplier\nBootstrap' )
         
         for alpha, delta in params:
             print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 

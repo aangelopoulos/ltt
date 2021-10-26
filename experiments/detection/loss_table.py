@@ -9,6 +9,7 @@ import multiprocessing as mp
 import pickle as pkl
 from tqdm import tqdm
 import pdb
+from profilehooks import profile
 
 def fix_randomness(seed=0):
     np.random.seed(seed=seed)
@@ -36,9 +37,9 @@ def get_loss_tables():
             gt_masks = pkl.load(f)
 
         n = len(roi_masks)        
-        lambda1s = torch.linspace(0.5,1,10) # Top score threshold
-        lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-        lambda3s = torch.tensor([0.9,0.925,0.95,0.975,0.99,0.995,0.999,0.9995,0.9999,0.99995,1]) # APS threshold
+        lambda1s = torch.linspace(0.5,0.8,50) # Top score threshold
+        lambda2s = torch.linspace(0.3,0.7,5) # Segmentation threshold
+        lambda3s = torch.logspace(-0.00436,0,25) # APS threshold
         loss_tables = torch.zeros(n,3,lambda1s.shape[0],lambda2s.shape[0],lambda3s.shape[0])
 
         iou_correct = 0.5

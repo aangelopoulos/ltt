@@ -165,9 +165,9 @@ if __name__ == "__main__":
     mp.set_start_method('fork')
     alphas = [0.25, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1
-    lambda1s = torch.linspace(0.5,1,10) # Top score threshold
-    lambda2s = torch.linspace(0,1,10) # Segmentation threshold
-    lambda3s = torch.tensor([0.9,0.925,0.95,0.975,0.99,0.995,0.999,0.9995,0.9999,0.99995,1]) # APS threshold
+    lambda1s = torch.linspace(0.5,0.8,100) # Top score threshold
+    lambda2s = torch.linspace(0.3,0.7,10) # Segmentation threshold
+    lambda3s = torch.logspace(-0.00436,0,50) # APS threshold
 
     # Multiprocessing setup
     manager = mp.Manager()

@@ -86,8 +86,10 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
     df_list = []
     def monotonic_pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta):
         return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=lambdas.shape[0])
-    rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB, pfdr_romano_wolf_multiplier_bootstrap) 
-    rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence",'Multiplier\nBootstrap')
+    #rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB, pfdr_romano_wolf_multiplier_bootstrap) 
+    rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB) 
+    #rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence",'Multiplier\nBootstrap')
+    rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence")
 
     for idx in range(len(rejection_region_functions)):
         rejection_region_function = rejection_region_functions[idx]
