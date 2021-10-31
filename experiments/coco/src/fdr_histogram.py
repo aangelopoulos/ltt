@@ -106,6 +106,33 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
 
     return fdrs.mean(), torch.tensor(sizes), float(lhat)
 
+def ridgeplot(sizes,labels,ax):
+    # Implement https://seaborn.pydata.org/examples/kde_ridgeplot
+    pdb.set_trace()
+    df = pd.DataFrame(dict(sizes=sizes, labels=labels))
+    pal = sns.cubehelix_palette(len(sizes), rot=-.25, light=.7)
+    g = sns.FacetGrid(df, row="labels", hue="labels", aspect=15, height=.5, palette=pal, ax=ax)
+    g.map(sns.kdeplot, "sizes",
+                  bw_adjust=.5, clip_on=False,
+                        fill=True, alpha=1, linewidth=1.5)
+    g.map(sns.kdeplot, "sizes", clip_on=False, color="w", lw=2, bw_adjust=.5)
+    g.refline(y=0, linewidth=2, linestyle="-", color=None, clip_on=False)
+    # Define and use a simple function to label the plot in axes coordinates
+    def _label(x,color,label):
+        ax.text(0, .2, label, fontweight="bold", color=color,
+                            ha="left", va="center", transform=ax.transAxes)
+
+
+    g.map(_label, "x")
+
+    # Set the subplots to overlap
+    g.figure.subplots_adjust(hspace=-.25)
+
+    # Remove axes details that don't play well with overlap
+    g.set_titles("")
+    g.set(yticks=[], ylabel="")
+    g.despine(bottom=True, left=True)
+
 def plot_histograms(df_list,alpha,delta):
     fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
 
@@ -128,7 +155,8 @@ def plot_histograms(df_list,alpha,delta):
         sizes_arrays = sizes_arrays + [sizes,]
         labels = labels + [df['region name'][0],]
     sns.violinplot(data=fdr_arrays, ax=axs[0],orient='h',inner=None)
-    sns.boxplot(data=sizes_arrays, ax=axs[1], orient='h',fliersize=0)
+    ridgeplot(sizes_arrays,labels,axs[1])
+    #sns.boxplot(data=sizes_arrays, ax=axs[1], orient='h',fliersize=0)
     #sns.boxenplot(data=sizes_arrays, ax=axs[1], orient='h')
 
     #sns.violinplot(data=sizes_arrays, ax=axs[1],orient='h',inner=None)
