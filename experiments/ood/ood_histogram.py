@@ -302,7 +302,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     l1_meshgrid, l2_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s)
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
 
-    if method_name == "Hamming SGT":
+    if method_name == "Hamming":
         R = row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
         lambda_selector[:] = True
 
@@ -333,7 +333,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
             p_values_corrected = calculate_corrected_p_values(calib_tables, alphas, lambda1s, lambda2s)
             lambda_selector[:] = True
 
-        if method_name == "SGT":
+        if method_name == "Fallback":
             p_values_corrected = p_values_corrected.reshape((lambda1s.shape[0],lambda2s.shape[0]))
             mask = np.zeros_like(p_values_corrected)
             for row in range(p_values_corrected.shape[0]):
@@ -387,7 +387,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes):
     df_list = []
-    rejection_region_names = ("Bonferroni","2D Fixed Sequence","SGT","Hamming SGT")
+    rejection_region_names = ("Bonferroni","2D Fixed Sequence","Fallback","Hamming")
 
     for idx in range(len(rejection_region_names)):
         rejection_region_name = rejection_region_names[idx]
