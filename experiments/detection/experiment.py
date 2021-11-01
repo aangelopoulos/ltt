@@ -165,9 +165,9 @@ if __name__ == "__main__":
     mp.set_start_method('fork')
     alphas = [0.25, 0.5, 0.5] # neg_m_coverage, neg_miou, neg_recall
     delta = 0.1
-    lambda1s = torch.linspace(0.5,0.8,100) # Top score threshold
-    lambda2s = torch.linspace(0.3,0.7,10) # Segmentation threshold
-    lambda3s = torch.logspace(-0.00436,0,50) # APS threshold
+    lambda1s = torch.linspace(0.5,0.8,50) # Top score threshold
+    lambda2s = torch.linspace(0.3,0.7,5) # Segmentation threshold
+    lambda3s = torch.logspace(-0.00436,0,25) # APS threshold
 
     # Multiprocessing setup
     manager = mp.Manager()
@@ -191,7 +191,7 @@ if __name__ == "__main__":
                 l1_meshgrid, l2_meshgrid, l3_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s,lambda3s)
 
                 # Test trial
-                trial(0, method, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgrid, l3_meshgrid, num_calib, loss_tables, risks, lhats)
+                #trial(0, method, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l2_meshgrid, l3_meshgrid, num_calib, loss_tables, risks, lhats)
                 # Queue the jobs
                 jobs = []
                 for i in range(num_trials):

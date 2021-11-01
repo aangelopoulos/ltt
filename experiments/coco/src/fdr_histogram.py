@@ -106,27 +106,18 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
 
     return fdrs.mean(), torch.tensor(sizes), float(lhat)
 
-def ridgeplot(sizes,labels,ax):
+def stacked_histograms(sizes,labels):
     # Implement https://seaborn.pydata.org/examples/kde_ridgeplot
-    pdb.set_trace()
-    df = pd.DataFrame(dict(sizes=sizes, labels=labels))
-    pal = sns.cubehelix_palette(len(sizes), rot=-.25, light=.7)
-    g = sns.FacetGrid(df, row="labels", hue="labels", aspect=15, height=.5, palette=pal, ax=ax)
-    g.map(sns.kdeplot, "sizes",
-                  bw_adjust=.5, clip_on=False,
-                        fill=True, alpha=1, linewidth=1.5)
-    g.map(sns.kdeplot, "sizes", clip_on=False, color="w", lw=2, bw_adjust=.5)
-    g.refline(y=0, linewidth=2, linestyle="-", color=None, clip_on=False)
-    # Define and use a simple function to label the plot in axes coordinates
-    def _label(x,color,label):
-        ax.text(0, .2, label, fontweight="bold", color=color,
-                            ha="left", va="center", transform=ax.transAxes)
-
-
-    g.map(_label, "x")
+    # Form dataframe
+    sizes_cat = np.concatenate(sizes,axis=0)
+    labels_cat = np.concatenate([np.array((labels[i],)*sizes[i].shape[0]) for i in range(len(labels))],axis=0)
+    df = pd.DataFrame(dict(sizes=sizes_cat, labels=labels_cat))
+    #pal = sns.cubehelix_palette(len(sizes), rot=-.25, light=.7)
+    g = sns.FacetGrid(df, row="labels", hue="labels",aspect=8,height=3/4)
+    g.map(sns.histplot, "sizes", discrete=True)
 
     # Set the subplots to overlap
-    g.figure.subplots_adjust(hspace=-.25)
+    #g.figure.subplots_adjust(hspace=-.25)
 
     # Remove axes details that don't play well with overlap
     g.set_titles("")
@@ -134,8 +125,6 @@ def ridgeplot(sizes,labels,ax):
     g.despine(bottom=True, left=True)
 
 def plot_histograms(df_list,alpha,delta):
-    fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
-
     sizes = torch.cat(df_list[0]['sizes'].tolist(),dim=0).numpy()
     d = np.diff(np.unique(sizes)).min()
     lofb = sizes.min() - float(d)/2
@@ -154,24 +143,32 @@ def plot_histograms(df_list,alpha,delta):
         sizes = torch.cat(df['sizes'].tolist(),dim=0).numpy()
         sizes_arrays = sizes_arrays + [sizes,]
         labels = labels + [df['region name'][0],]
-    sns.violinplot(data=fdr_arrays, ax=axs[0],orient='h',inner=None)
-    ridgeplot(sizes_arrays,labels,axs[1])
-    #sns.boxplot(data=sizes_arrays, ax=axs[1], orient='h',fliersize=0)
-    #sns.boxenplot(data=sizes_arrays, ax=axs[1], orient='h')
 
-    #sns.violinplot(data=sizes_arrays, ax=axs[1],orient='h',inner=None)
-    
-    axs[0].set_xlabel('FDR')
-    axs[0].locator_params(axis='x', nbins=4)
-    axs[0].set_yticklabels(labels)
-    axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
-    axs[1].set_xlabel('size')
-    axs[1].xaxis.get_major_locator().set_params(integer=True)
-    axs[1].set_yticks([])
-    sns.despine(ax=axs[0],top=True,right=True)
-    sns.despine(ax=axs[1],top=True,right=True)
+    # First plot: violins
+    fig = plt.figure(figsize=(6,3))
+    ax = fig.gca()
+    sns.violinplot(data=fdr_arrays, ax=ax,orient='h',inner=None)
+    ax.set_xlabel('FDR')
+    ax.locator_params(axis='x', nbins=4)
+    ax.set_yticklabels(labels)
+    ax.axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    sns.despine(ax=ax,top=True,right=True)
     plt.tight_layout()
-    plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_histograms').replace('.','_') + '.pdf')
+    plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_violins').replace('.','_') + '.pdf')
+
+    # Second plot: sizes
+    fig = plt.figure(figsize=(6,3))
+    ax = fig.gca()
+    stacked_histograms(sizes_arrays,labels)
+    
+    plt.xlabel('size')
+    ax.set_xlabel('size')
+    ax.xaxis.get_major_locator().set_params(integer=True)
+    ax.set_xlim([0.5,None])
+    #axs[1].set_yticks([])
+    sns.despine(ax=ax,top=True,right=True)
+    plt.tight_layout()
+    plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_stacked_histograms').replace('.','_') + '.pdf')
 
 
 def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json):

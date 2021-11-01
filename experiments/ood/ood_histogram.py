@@ -302,11 +302,11 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
     l1_meshgrid, l2_meshgrid = flatten_lambda_meshgrid(lambda1s,lambda2s)
     lambda_selector = np.ones((lambda1s.shape[0]*lambda2s.shape[0],)) > 2  # All false
 
-    if method_name == "Row Equalized Graph":
+    if method_name == "Hamming SGT":
         R = row_equalized_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
         lambda_selector[:] = True
 
-    elif method_name == "Graph":
+    elif method_name == "Gridsplit SGT":
         R = gridsplit_graph_test(loss_tables, alphas, delta, lambda1s, lambda2s, num_calib)    
         lambda_selector[:] = True
 
@@ -387,7 +387,7 @@ def trial_precomputed(method_name, alphas, delta, lambda1s, lambda2s, num_calib,
 
 def experiment(alphas,delta,lambda1s,lambda2s,num_calib,num_trials,maxiter,cache_dir,num_processes):
     df_list = []
-    rejection_region_names = ("Bonferroni","2D Fixed Sequence","SGT")
+    rejection_region_names = ("Bonferroni","2D Fixed Sequence","SGT","Hamming SGT")
 
     for idx in range(len(rejection_region_names)):
         rejection_region_name = rejection_region_names[idx]
@@ -479,9 +479,9 @@ if __name__ == "__main__":
     alphas = [0.05,0.01]
     delta = 0.1
     maxiter = int(1e3)
-    num_trials = 1000
+    num_trials = 100
     num_calib = 8000
-    num_processes = 30
+    num_processes = 15
     lambda1s = None 
     lambda2s = np.linspace(0,1,1000)
     
