@@ -23,7 +23,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
 
     axs[1].plot(lambdas,pfdps,color='k',linewidth=3,label='pFDP')
-    axs[1].plot(lambdas,frac_predict,color='g',linewidth=3,label='avg size')
+    axs[1].plot(lambdas,frac_predict,color='#AF6E4E',linewidth=3,label='avg size')
 
     pfdps = []
     labels = []
@@ -46,7 +46,10 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
     axs[0].set_yticklabels(labels)
     axs[1].set_xlabel(r'$\lambda$')
-    axs[1].legend()
+    axs[1].axhline(y=alpha, c='#999999', linestyle=':',label="$\\alpha$", alpha=0.7)
+    axs[1].axvline(x=df_list[0]["$\\hat{\\lambda}$"].median(), c='#999999', linestyle='--',label=df_list[0]["region name"][0] + " $\\hat{\\lambda}$", alpha=0.7)
+    axs[1].axvline(x=df_list[-1]["$\\hat{\\lambda}$"].median(), c='#999999', linestyle='-.',label=df_list[-1]["region name"][0] + " $\\hat{\\lambda}$", alpha=0.7)
+    axs[1].legend(loc='upper left')
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
     plt.tight_layout()

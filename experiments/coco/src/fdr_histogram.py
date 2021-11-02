@@ -154,7 +154,7 @@ def plot_histograms(df_list,alpha,delta):
     ax.axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
     sns.despine(ax=ax,top=True,right=True)
     plt.tight_layout()
-    plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_violins').replace('.','_') + '.pdf')
+    plt.savefig('../' + (f'outputs/violins_tables/{alpha}_{delta}_coco_violins').replace('.','_') + '.pdf')
 
     # Second plot: sizes
     fig = plt.figure(figsize=(6,3))
@@ -168,7 +168,7 @@ def plot_histograms(df_list,alpha,delta):
     #axs[1].set_yticks([])
     sns.despine(ax=ax,top=True,right=True)
     plt.tight_layout()
-    plt.savefig('../' + (f'outputs/histograms/{alpha}_{delta}_coco_stacked_histograms').replace('.','_') + '.pdf')
+    plt.savefig('../' + (f'outputs/violins_tables/{alpha}_{delta}_coco_stacked_histograms').replace('.','_') + '.pdf')
 
 
 def experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_lam,num_calib,lambdas_example_table,num_trials,coco_val_2017_directory,coco_instances_val_2017_json):
