@@ -105,7 +105,6 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     indexes_fine_grid = method(big_table[:,lambda_indexes_to_search],lambdas[lambda_indexes_to_search],alpha,delta, *argv)
     if len(indexes_fine_grid) == 0:
         print("ZERO SIZE\n\n\n")
-        #pdb.set_trace()
         return np.array([0,])
     return_indexes = lambda_indexes_to_search[indexes_fine_grid]
     return return_indexes 
@@ -190,13 +189,18 @@ def graphical_bonferroni_search_HB(loss_table, lambdas_list, alphas, delta, frac
 """
 # Just select the set of lambdas where the 1-delta quantile of the loss table is below alpha.
 def naive_rejection_region(loss_table,lambdas,alpha,delta):
-    return np.array([np.nonzero(loss_table.mean(axis=0) < alpha)[0][0],np.nonzero(loss_table.mean(axis=0)<alpha)[0][-1]])
+    try:
+        return np.array([np.nonzero(loss_table.mean(axis=0) < alpha)[0][0],np.nonzero(loss_table.mean(axis=0)<alpha)[0][-1]])
+    except:
+        return np.array([])
 
 """
     UNIFORM REGION (only returns endpoints) 
 """
 def uniform_region(loss_table,lambdas,alpha,delta,m):
     r_hats = loss_table.mean(axis=0) # empirical risk at each lambda (FDP)
+    if r_hats.min() >= alpha:
+        return np.array([])
     starting_index = (r_hats < alpha).nonzero()[0][0]
     ending_index = (r_hats < alpha).nonzero()[0][-1]
     R = np.array([])
@@ -218,52 +222,58 @@ def uniform_region(loss_table,lambdas,alpha,delta,m):
 """
     SIMULATION OF LOSSES
 """
-def AR_Noise_Process(signal,alpha,n,N,corr):
+@cacheable
+def get_empirical_process_means(mu_low, mu_high, num_mu):
+    possible_mus = np.linspace(mu_low, mu_high, num_mu)
+    return stats.norm.cdf(np.random.normal(size=(10000,num_mu)) + possible_mus[None,:]).mean(axis=0)
+
+def get_process_mean_function():
+    mu_low, mu_high, num_mu = (-20, 20, 10000)
+    possible_mus = np.linspace(mu_low, mu_high, num_mu)
+    empirical_means = get_empirical_process_means(mu_low,mu_high,num_mu)
+    def _mean_function(mu):
+        return empirical_means[np.abs(possible_mus-mu).argmin()]
+    return _mean_function
+
+def AR_Noise_Process(signal,alpha,n,N,corr,mean_function):
     sigma2 = 1/(1-corr**2)
     # Now find the sequence of mus that leads to the right expected values of an AR process
     mus = np.zeros_like(signal)
     for j in range(N):
         def _condition(mu_j):
-            return stats.norm.cdf(0,-mu_j,np.sqrt(1+sigma2)) - signal[j]
+            return mean_function(mu_j) - signal[j]
         mus[j] = brentq(_condition,-100,100)
     # Simulate the AR process now
     loss_table = np.zeros((n,N))
     u = np.random.normal(loc=0,scale=np.sqrt(sigma2),size=n)
     for j in range(N):
         loss_table[:,j] = stats.norm.cdf(u + mus[j])
-        u = corr*u + np.sqrt(1-(corr*corr))*np.random.normal(loc=0,scale=1,size=n)
+        u = corr*u + np.sqrt(1-corr*corr)*np.random.normal(loc=0,scale=1,size=n)
     return loss_table
 
 """
     PLOT SIMULATION AND REJECTION REGIONS
 """
 
-def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsample_factor):
+def plot_simulation_and_rejection_regions(ax, n,N,m,delta,alpha,corr,peak,downsample_factor):
     # Create a signal that dips below alpha at some points 
     signal = np.concatenate((np.linspace(peak,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,peak,int(np.ceil(N/2)))),axis=0)
-    loss_table = AR_Noise_Process(signal,alpha,n,N,corr)
+    mean_function = get_process_mean_function()
+    loss_table = AR_Noise_Process(signal,alpha,n,N,corr,mean_function)
     lambdas = np.linspace(0,1,N)
     # Get rejection regions for different methods
     R_naive = naive_rejection_region(loss_table,lambdas,alpha,delta)
-    R_RW_bootstrap = romano_wolf_multiplier_bootstrap(loss_table,lambdas,alpha,delta)
-    R_RW_HB = romano_wolf_HB(loss_table,lambdas,alpha,delta)
-    R_RW_CLT = romano_wolf_CLT(loss_table,lambdas,alpha,delta)
     R_bonferroni_search_HB = bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor)
     R_bonferroni_HB = bonferroni_HB(loss_table,lambdas,alpha,delta)
-    R_bonferroni_CLT = bonferroni_CLT(loss_table,lambdas,alpha,delta)
     R_uniform = uniform_region(loss_table,lambdas,alpha,delta,m)
-    R_multiscale_bonferroni_HB = multiscale_bonferroni_HB(loss_table,lambdas,alpha,delta)
-    R_multiscale_bonferroni_search_HB = multiscale_bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor)
 
     Rs = [R_naive, 
-            R_RW_bootstrap, 
             R_bonferroni_search_HB,
             R_bonferroni_HB,
             R_uniform,
          ] 
 
     labels = (  "Empirical \nrisk" + r' < $\alpha$',
-                'Multiplier\nBootstrap',
                 'Fixed\nSequence',
                 r'Bonferroni',
                 r'Uniform'
@@ -286,6 +296,7 @@ def plot_simulation_and_rejection_regions(ax,n,N,m,delta,alpha,corr,peak,downsam
 
     # Finish
     sns.despine(top=True,right=True)
+    return loss_table
 
 if __name__ == "__main__":
     n = 4000
@@ -302,7 +313,7 @@ if __name__ == "__main__":
         fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+16,len(corrs)*4+4))
         for i in reversed(range(len(alphas))):
             for j in reversed(range(len(corrs))):
-                plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
+                loss_table = plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
                 if i == 0:
                     axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=30)
                 if j == 0:
@@ -316,9 +327,11 @@ if __name__ == "__main__":
         plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
         # Now plot true signal
         plt.figure()
+        i = -1
         signal = np.concatenate((np.linspace(peak,alphas[i]/4,int(np.floor(N/2))),np.linspace(alphas[i]/4,peak,int(np.ceil(N/2)))),axis=0)
         lambdas = np.linspace(0,1,N)
         plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
+        #plt.plot(lambdas,loss_table.mean(axis=0),alpha=1,color='k',linewidth=3, label="Empirical Risk")
         plt.gca().axhline(alphas[i],xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
         plt.gca().set_xlabel(r'$\lambda$',fontsize=20)
         plt.gca().set_ylabel('True Risk',fontsize=20)
