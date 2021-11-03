@@ -105,7 +105,7 @@ def multiscaleify(method, frac_data_coarse, loss_table, lambdas, alpha, delta, *
     indexes_fine_grid = method(big_table[:,lambda_indexes_to_search],lambdas[lambda_indexes_to_search],alpha,delta, *argv)
     if len(indexes_fine_grid) == 0:
         print("ZERO SIZE\n\n\n")
-        return np.array([0,])
+        return np.array([0.5,])
     return_indexes = lambda_indexes_to_search[indexes_fine_grid]
     return return_indexes 
 
@@ -255,7 +255,7 @@ def AR_Noise_Process(signal,alpha,n,N,corr,mean_function):
     PLOT SIMULATION AND REJECTION REGIONS
 """
 
-def plot_simulation_and_rejection_regions(ax, n,N,m,delta,alpha,corr,peak,downsample_factor):
+def get_simulation_and_rejection_regions(n,N,m,delta,alpha,corr,peak,downsample_factor):
     # Create a signal that dips below alpha at some points 
     signal = np.concatenate((np.linspace(peak,alpha/4,int(np.floor(N/2))),np.linspace(alpha/4,peak,int(np.ceil(N/2)))),axis=0)
     mean_function = get_process_mean_function()
@@ -288,15 +288,11 @@ def plot_simulation_and_rejection_regions(ax, n,N,m,delta,alpha,corr,peak,downsa
     
     for i in range(len(Rs)):
         if len(Rs[i])==0:
-            Rs[i] = np.array([0,])
+            Rs[i] = np.array([np.abs(lambdas-0.5).argmin(),])
 
     endpoints = lambdas[[R.max() for R in Rs]]
     
-    sns.barplot(x=np.array(labels),y=endpoints, ax=ax, alpha=0.7)
-
-    # Finish
-    sns.despine(top=True,right=True)
-    return loss_table
+    return list(labels), endpoints.tolist(), list((alpha,)*len(labels))
 
 if __name__ == "__main__":
     n = 4000
@@ -305,26 +301,37 @@ if __name__ == "__main__":
     delta = 0.1
     alphas = (0.1, 0.15, 0.2)
     # Define the correlation of the AR noise process
-    corrs = (0.90, 0.80, 0.70)
+    corr = 0.9 
     peaks = (0.8,0.4)
     downsample_factor = 10
 
+    
     for peak in peaks:
-        fig, axs = plt.subplots(nrows=len(alphas), ncols=len(corrs), sharex=True, sharey=True, figsize=(len(alphas)*4+16,len(corrs)*4+4))
+        labels = []
+        endpoints = []
+        alpha_list = []
         for i in reversed(range(len(alphas))):
-            for j in reversed(range(len(corrs))):
-                loss_table = plot_simulation_and_rejection_regions(axs[i,j],n,N,m,delta,alphas[i],corrs[j],peak,downsample_factor)
-                if i == 0:
-                    axs[i,j].set_title("corr=" + str(corrs[j]), fontsize=30)
-                if j == 0:
-                    axs[i,j].set_ylabel(r"$\alpha=$" + str(alphas[i]), fontsize=30)
-                axs[i,j].set_ylim(bottom=0.5, top=None)
-                xticklabels = axs[i,j].get_xticklabels()
-                plt.setp(xticklabels, rotation=45, fontsize=25)
-                yticklabels = axs[i,j].get_yticklabels()
-                plt.setp(yticklabels, fontsize=25)
+            out = get_simulation_and_rejection_regions(n,N,m,delta,alphas[i],corr,peak,downsample_factor)
+            labels = labels + out[0]
+            endpoints = endpoints + out[1]
+            alpha_list = alpha_list + out[2]
 
-        plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_concentration_comparison.pdf")
+        labels = np.array(labels)
+        endpoints = np.array(endpoints)
+        alpha_list = np.array(alpha_list)
+
+        table_string = ""
+        for label in np.unique(labels):
+            table_string += f"{label} "
+            for a in np.unique(alpha_list):
+                endpoint = endpoints[(labels==label) & (alpha_list==a)]
+                table_string += f"& {endpoint[0]:.2f}"
+            table_string += "\\\\\n"
+
+        table_file = open('../outputs/concentration_results/' + f'{str(peak)}_table'.replace(".","_") + '.txt', "w")
+        n = table_file.write(table_string)
+        table_file.close()
+
         # Now plot true signal
         plt.figure()
         i = -1
