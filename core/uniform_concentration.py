@@ -132,6 +132,15 @@ def nu_plus(n, m, nu, alpha, delta, maxiter, num_grid_points):
         nu_plus = 1 
     return nu_plus 
 
+# The empirical risk required to get an upper bound of b
+def required_empirical_risk(b, n, m, alpha, delta, maxiter, num_grid_points):
+    def _condition(er):
+        return (nu_plus(n, m, er, alpha, delta, maxiter, num_grid_points) - b)
+    try:
+        return brentq(_condition, 0, 1, maxiter=maxiter)
+    except:
+        return 0
+
 @cacheable
 def r_minus(n, m, r, alpha, delta, maxiter, num_grid_points):
     eta_star = get_eta_star_upper(n, m, alpha, delta, 20, num_grid_points=num_grid_points)

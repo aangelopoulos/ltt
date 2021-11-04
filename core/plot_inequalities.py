@@ -5,6 +5,7 @@ import seaborn as sns
 import scipy.stats as stats
 from scipy.optimize import brentq
 from concentration import *
+from uniform_concentration import *
 import pdb
 
 def plot_upper_tail(ns,s,ms,delta,maxiter):
@@ -29,7 +30,7 @@ def plot_required_fdp(ns, m, alphas, deltas, maxiter):
         alpha = alphas[i]
         for j in range(len(deltas)):
             delta = deltas[j]
-            local_list = [pd.DataFrame.from_dict({'alpha_plus': [required_fdp(n, m, alpha, delta, maxiter),],
+            local_list = [pd.DataFrame.from_dict({'alpha_plus': [required_empirical_risk(alpha, n, m, alpha, delta, maxiter, 100),],
                                                   'n': [n,],
                                                   'm': [m,],
                                                   'alpha': [alpha,],
