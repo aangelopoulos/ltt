@@ -109,7 +109,7 @@ def trial_precomputed(rejection_region_function, rejection_region_name, example_
 def table_function(sizes_array,labels):
     strng = ""
     for i in range(len(labels)):
-        strng = strng + f"{labels[i]} & {np.median(sizes_array[i]):.2f} & {np.quantile(sizes_array[i],0.75):.2f} & {np.quantile(sizes_array[i], 0.9):.2f} & {np.quantile(sizes_array[i],0.99):.2f} & {np.quantile(sizes_array[i],0.999):.2f}"
+        strng = strng + f"{labels[i]} & {int(np.median(sizes_array[i]))} & {int(np.quantile(sizes_array[i],0.75))} & {int(np.quantile(sizes_array[i], 0.9))} & {int(np.quantile(sizes_array[i],0.99))} & {int(np.quantile(sizes_array[i],0.999))}"
         strng += "\\\\\n"
     return strng 
 

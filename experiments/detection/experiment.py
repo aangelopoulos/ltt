@@ -137,10 +137,11 @@ def trial(i, method, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l
     l1s = l1_meshgrid[R]
     l2s = l2_meshgrid[R]
     l3s = l3_meshgrid[R]
-    
+
     l3 = l3s[l3s > l1s].min()
     l2 = l2s[(l3s > l1s) & (l3s==l3)].median()
     l1 = l1s[(l3s > l1s) & (l2s==l2) & (l3s==l3)].min()
+
     lhats[i] = np.array([l1,l2,l3])
 
     # Validate
@@ -159,7 +160,7 @@ def trial(i, method, alphas, delta, lambda1s, lambda2s, lambda3s, l1_meshgrid, l
 if __name__ == "__main__":
     sns.set(palette='pastel',font='serif')
     sns.set_style('white')
-    num_trials = 1000
+    num_trials = 1000 
     num_calib = 3000 
     num_processes = 30 
     mp.set_start_method('fork')

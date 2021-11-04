@@ -1,5 +1,5 @@
-Uniform & 3.00 & 4.00 & 6.00 & 11.00 & 13.00\\
-Bonferroni & 3.00 & 4.00 & 7.00 & 11.00 & 14.00\\
+Uniform & 3 & 4 & 6 & 11 & 13\\
+Bonferroni & 3 & 4 & 7 & 11 & 14\\
 Fixed Sequence
-(Multi-Start) & 3.00 & 4.00 & 7.00 & 11.00 & 14.00\\
-Fixed Sequence & 3.00 & 5.00 & 7.00 & 12.00 & 14.00\\
+(Multi-Start) & 3 & 4 & 7 & 11 & 14\\
+Fixed Sequence & 3 & 5 & 7 & 12 & 14\\
