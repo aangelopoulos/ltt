@@ -57,7 +57,7 @@ if __name__ == "__main__":
         cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
         cfg.MODEL.ROI_HEADS.NAME = "UQHeads"
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5 #set threshold for this model
-        cfg.MODEL.ROI_HEADS.APS_THRESH = 0.999 #set threshold for this model
+        cfg.MODEL.ROI_HEADS.APS_THRESH = 0.99817866 #set threshold for this model
         # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
         cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
         predictor = DefaultPredictor(cfg)
@@ -92,11 +92,11 @@ if __name__ == "__main__":
             if len(outputs['instances']) == 0:
                 continue
             outputs['instances'] = outputs['instances'].to('cpu')
-            tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.682
+            tokeep = outputs["instances"].softmax_outputs.max(dim=1)[0] > 0.5026082 
             outputs['instances'].roi_masks.tensor = outputs['instances'].roi_masks.tensor[tokeep]
             outputs['instances'].pred_boxes.tensor = outputs['instances'].pred_boxes.tensor[tokeep]
             outputs['instances'].pred_sets = outputs['instances'].pred_sets[tokeep]
-            outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.4444).tensor
+            outputs['instances'].pred_masks = outputs['instances'].roi_masks.to_bitmasks(outputs['instances'].pred_boxes,img.shape[0],img.shape[1],0.31189948).tensor
             outputs['instances'].softmax_outputs = outputs['instances'].softmax_outputs[tokeep]
             outputs['instances'].scores = outputs['instances'].scores[tokeep]
             outputs['instances'].class_ordering = outputs['instances'].class_ordering[tokeep]
