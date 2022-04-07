@@ -126,10 +126,10 @@ def get_model_outputs():
     try:
         X_val = np.load('./.cache/X_val.npy')
         y_val = np.load('./.cache/y_val.npy')
-        mean_val = np.save('./.cache/mean_val.npy')
-        upper_val = np.save('./.cache/upper_val.npy')
-        lower_val = np.save('./.cache/lower_val.npy')
-        error_scores_val = np.save('./.cache/error_scores_val.npy')
+        mean_val = np.load('./.cache/mean_val.npy')
+        upper_val = np.load('./.cache/upper_val.npy')
+        lower_val = np.load('./.cache/lower_val.npy')
+        error_scores_val = np.load('./.cache/error_scores_val.npy')
     except:
         X, y = get_data()
         X_train, X_val, y_train, y_val = process_data(*shuffle_split(X,y))
@@ -143,45 +143,45 @@ def get_model_outputs():
         np.save('./.cache/error_scores_val.npy', error_scores_val)
     return X_val, y_val, mean_val, upper_val, lower_val, error_scores_val 
 
-def get_loss_table(alpha1, alpha2):
+def get_loss_table(alpha):
     try:
-        loss_table = np.load(f'./.cache/{alpha1}_{alpha2}_loss_table.npy')
+        # encode loss (MSE) as 0th channel and abstentions as 1st channel.
+        loss_table = np.load(f'./.cache/{alpha}_loss_table.npy')
     except:
         X_val, y_val, mean_val, upper_val, lower_val, error_scores_val = get_model_outputs()
-        lambda1s = np.linspace(0.8,1.2,10)
-        lambda2s = np.linspace(0,1,10)
-        lambda2s = np.array( [ np.quantile(error_scores_val, l2) for l2 in lambda2s ] )
-        loss_table = np.zeros( (y_val.shape[0], 2, lambda1s.shape[0], lambda2s.shape[0]) )
+        lambdas = np.array( [ np.quantile(error_scores_val, q) for q in np.linspace(0,1,10) ] )
+        loss_table = np.zeros( (y_val.shape[0], 2, lambdas.shape[0]) )
         squared_errors = (mean_val - y_val)**2
-        for i in range(lambda1s.shape[0]):
-            for j in range(lambda2s.shape[0]):
-                upper_edge = lambda1s[i]*(np.abs(upper_val - mean_val) + 1e-5) + mean_val
-                lower_edge = -lambda1s[i]*(np.abs(lower_val - mean_val) + 1e-5) + mean_val
-                bool_predict = error_scores_val <= lambda2s[j]
-                miscoverages = 1-((lower_edge <= y_val) & (upper_edge >= y_val))
-                loss_table[:,0,i,j] = (miscoverages * bool_predict) - alpha1*bool_predict + alpha1
-                loss_table[:,1,i,j] = (squared_errors * bool_predict) - alpha2*bool_predict + alpha2
-        np.save('./.cache/{alpha1}_{alpha2}_loss_table.npy', loss_table)
+        for i in range(lambdas.shape[0]):
+            bool_predict = error_scores_val <= lambdas[i]
+            # encode loss (MSE) as 0th channel and abstentions as 1st channel.
+            loss_table[:,0,i] = (squared_errors * bool_predict) - alpha*bool_predict + alpha
+            loss_table[:,1,i] = (~bool_predict).astype(float)
+        np.save('./.cache/{alpha}_loss_table.npy', loss_table)
     return loss_table
 
-def ltt_calibrate_evaluate(loss_table, alpha1, alpha2, delta):
+def ltt_calibrate_evaluate(loss_table, alpha, delta):
+    # encode loss (MSE) as 0th channel and abstentions as 1st channel.
     np.random.shuffle(loss_table)
-    n = loss_table.shape[0]//2
-    cal_table, val_table = loss_table[:n], loss_table[n:]
+    mse_table, abstention_table = loss_table[:,0,:], loss_table[:,1,:]
+    mse_max = mse_table.max()
+    mse_table = mse_table/mse_max # scale all to 0-1
+    n = mse_table.shape[0]//2
+    cal_table, val_table = mse_table[:n], mse_table[n:]
     cal_risks, val_risks = cal_table.mean(axis=0), val_table.mean(axis=0)
-    def non_vectorized_hbpv_alpha1(r_hat):
-        return hb_p_value(r_hat, n, alpha1)
-    hbpv1 = np.vectorize(non_vectorized_hbpv_alpha1)
-    def non_vectorized_hbpv_alpha2(r_hat):
-        return hb_p_value(r_hat, n, alpha2)
-    hbpv2 = np.vectorize(non_vectorized_hbpv_alpha2)
+    val_abstentions = abstention_table[n:].mean(axis=0)
+    def non_vectorized_hbpv_alpha(r_hat):
+        return hb_p_value(r_hat, n, alpha)
+    hbpv = np.vectorize(non_vectorized_hbpv_alpha)
+    pvals = hbpv(cal_risks)
+    valid = bonferroni_search(pvals, delta, 1)
+    ihat = valid[np.argmax( cal_risks[valid] )] # Get the minimum risk index
+    risk_est = val_risks[ihat]
     pdb.set_trace()
-    p_values = np.maximum(hbpv1(cal_risks[0]), hbpv2(cal_risks[0]))
-    R = bonferroni(p_vales.flatten())
+    abstention_est = val_abstentions[ihat] 
 
 if __name__ == "__main__":
-    alpha1 = 0.1
-    alpha2 = 3
+    alpha = 0.1 
     delta = 0.1
-    loss_table = get_loss_table(alpha1, alpha2)
-    ltt_calibrate_evaluate(loss_table, alpha1, alpha2, delta)
+    loss_table = get_loss_table(alpha)
+    ltt_calibrate_evaluate(loss_table, alpha, delta)
