@@ -29,3 +29,4 @@ dependencies:
         - git+https://github.com/mapillary/inplace_abn.git@v1.0.12
         - randaugment
         - opencv-contrib-python
+        - xport
