@@ -1,10 +1,12 @@
-import os, itertools
+import os, sys, inspect, itertools
+sys.path.insert(1, os.path.join(sys.path[0], '../../'))
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor, IsolationForest 
 from sklearn.neighbors import LocalOutlierFactor
 from scipy.stats import spearmanr
+from core.concentration import *
 from tqdm import tqdm
 import pdb
 
@@ -68,46 +70,118 @@ def process_data(X_train, X_val, y_train, y_val):
 	y_val = np.squeeze(np.asarray(y_val))
 	return X_train, X_val, y_train, y_val
 
-def optimize_params_GBR(X_train, X_val, y_train, y_val):
+def optimize_params_GBR(X_train, X_val, y_train, y_val, alpha=0.1):
     filename = './.cache/GBR_optim.pkl'
     try:
         optim_df = pd.read_pickle(filename)
     except:
-        lrs = list(np.logspace(-2,0,3))
-        n_ests = [50,100,500]
-        subsamples = [0.5,1] 
-        max_depths = [10,25,] 
-        optim_df = pd.DataFrame(columns = ['lr','n_estimators', 'subsample', 'max_depth', 'mse'])
+        lrs = [0.01,]
+        n_ests = [100,]
+        subsamples = [1,]
+        max_depths = [10,25] 
+        optim_df = pd.DataFrame(columns = ['lr','n_estimators', 'subsample', 'max_depth', 'cvg'])
         for lr, n_estimators, subsample, max_depth in tqdm(itertools.product(lrs, n_ests, subsamples, max_depths)):
-            regr = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth)
-            regr.fit(X_train, y_train)
-            pred = regr.predict(X_val)
-            mse = ((pred - y_val)**2).mean()
-            optim_dict = { 'lr' : lr,'n_estimators' : n_estimators, 'subsample' : subsample, 'max_depth' : max_depth, 'mse' : mse }
+            mean = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth)
+            upper = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth, alpha=1-alpha/2, loss='quantile')
+            lower = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth, alpha=alpha/2, loss='quantile')
+            mean.fit(X_train, y_train)
+            upper.fit(X_train, y_train)
+            lower.fit(X_train, y_train)
+            pred_mean = mean.predict(X_val) 
+            pred_upper = upper.predict(X_val)
+            pred_lower = lower.predict(X_val)
+            pred_upper = np.maximum(pred_upper, pred_lower + 1e-6)
+            mse = ( (y_val - pred_mean)**2 ).mean()
+            cvg = ( (y_val <= pred_upper) & (y_val >= pred_lower) ).mean()
+            optim_dict = { 'lr' : lr,'n_estimators' : n_estimators, 'subsample' : subsample, 'max_depth' : max_depth, 'mse' : mse, 'cvg' : cvg }
             optim_df = optim_df.append(optim_dict, ignore_index=True)
             tqdm.write(str(optim_dict))
         os.makedirs('./.cache/', exist_ok=True)
         optim_df.to_pickle(filename)
-    idx = np.argmin(optim_df['mse'])
-    optim_df = optim_df.loc[idx]
-    print(f"Optimal Params: {optim_df}")
+    idx_quantiles = np.argmin(np.abs(optim_df['cvg']-(1-alpha)))
+    idx_mean = np.argmin(optim_df['mse'])
+    optim_df_quantiles = optim_df.loc[idx_quantiles]
+    optim_df_mean = optim_df.loc[idx_mean]
     # GBR
-    regr = GradientBoostingRegressor(random_state=0, learning_rate=optim_df['lr'], n_estimators=int(optim_df['n_estimators']), subsample=optim_df['subsample'], max_depth=int(optim_df['max_depth']))
-    regr.fit(X_train, y_train)
-    pred = regr.predict(X_val)
+    mean = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_mean['lr'], n_estimators=int(optim_df_mean['n_estimators']), subsample=optim_df_mean['subsample'], max_depth=int(optim_df_mean['max_depth']), alpha=1-alpha/2, loss='quantile')
+    upper = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_quantiles['lr'], n_estimators=int(optim_df_quantiles['n_estimators']), subsample=optim_df_quantiles['subsample'], max_depth=int(optim_df_quantiles['max_depth']), alpha=1-alpha/2, loss='quantile')
+    lower = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_quantiles['lr'], n_estimators=int(optim_df_quantiles['n_estimators']), subsample=optim_df_quantiles['subsample'], max_depth=int(optim_df_quantiles['max_depth']), alpha=alpha/2, loss='quantile')
+    mean.fit(X_train, y_train)
+    upper.fit(X_train, y_train)
+    lower.fit(X_train, y_train)
+    pred_mean_train = mean.predict(X_train)
+    pred_mean_val = mean.predict(X_val)
+    pred_upper_val = upper.predict(X_val)
+    pred_lower_val = lower.predict(X_val)
+    residual_magnitudes_train = np.abs( pred_mean_train - y_train )
+    residual_magnitudes_val = np.abs( pred_mean_val - y_val )
+    coverage_indicators_val = (pred_lower_val <= y_val) & (pred_upper_val >= y_val)
     # Anomaly detector
-    clf = LocalOutlierFactor(novelty=True, n_neighbors=200).fit(X_train)
-    anomalyScores = -clf.score_samples(X_val) # larger is more anomalous
-    residuals = (pred - y_val)
-    pdb.set_trace()
-    mse = (residuals**2).mean()
-    return regr 
+    error_predictor = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_mean['lr'], n_estimators=int(optim_df_mean['n_estimators']), subsample=optim_df_mean['subsample'], max_depth=int(optim_df_mean['max_depth']))
+    error_predictor.fit(X_train, residual_magnitudes_train)
+    error_scores_val = error_predictor.predict(X_val)
+    return pred_mean_val, pred_upper_val, pred_lower_val, error_scores_val
 
+def get_model_outputs():
+    try:
+        X_val = np.load('./.cache/X_val.npy')
+        y_val = np.load('./.cache/y_val.npy')
+        mean_val = np.save('./.cache/mean_val.npy')
+        upper_val = np.save('./.cache/upper_val.npy')
+        lower_val = np.save('./.cache/lower_val.npy')
+        error_scores_val = np.save('./.cache/error_scores_val.npy')
+    except:
+        X, y = get_data()
+        X_train, X_val, y_train, y_val = process_data(*shuffle_split(X,y))
+        mean_val, upper_val, lower_val, error_scores_val = optimize_params_GBR(X_train, X_val, y_train, y_val)
+        os.makedirs('./.cache/', exist_ok=True)
+        np.save('./.cache/X_val.npy', X_val)
+        np.save('./.cache/y_val.npy', y_val)
+        np.save('./.cache/mean_val.npy', mean_val)
+        np.save('./.cache/upper_val.npy', upper_val)
+        np.save('./.cache/lower_val.npy', lower_val)
+        np.save('./.cache/error_scores_val.npy', error_scores_val)
+    return X_val, y_val, mean_val, upper_val, lower_val, error_scores_val 
+
+def get_loss_table(alpha1, alpha2):
+    try:
+        loss_table = np.load(f'./.cache/{alpha1}_{alpha2}_loss_table.npy')
+    except:
+        X_val, y_val, mean_val, upper_val, lower_val, error_scores_val = get_model_outputs()
+        lambda1s = np.linspace(0.8,1.2,10)
+        lambda2s = np.linspace(0,1,10)
+        lambda2s = np.array( [ np.quantile(error_scores_val, l2) for l2 in lambda2s ] )
+        loss_table = np.zeros( (y_val.shape[0], 2, lambda1s.shape[0], lambda2s.shape[0]) )
+        squared_errors = (mean_val - y_val)**2
+        for i in range(lambda1s.shape[0]):
+            for j in range(lambda2s.shape[0]):
+                upper_edge = lambda1s[i]*(np.abs(upper_val - mean_val) + 1e-5) + mean_val
+                lower_edge = -lambda1s[i]*(np.abs(lower_val - mean_val) + 1e-5) + mean_val
+                bool_predict = error_scores_val <= lambda2s[j]
+                miscoverages = 1-((lower_edge <= y_val) & (upper_edge >= y_val))
+                loss_table[:,0,i,j] = (miscoverages * bool_predict) - alpha1*bool_predict + alpha1
+                loss_table[:,1,i,j] = (squared_errors * bool_predict) - alpha2*bool_predict + alpha2
+        np.save('./.cache/{alpha1}_{alpha2}_loss_table.npy', loss_table)
+    return loss_table
+
+def ltt_calibrate_evaluate(loss_table, alpha1, alpha2, delta):
+    np.random.shuffle(loss_table)
+    n = loss_table.shape[0]//2
+    cal_table, val_table = loss_table[:n], loss_table[n:]
+    cal_risks, val_risks = cal_table.mean(axis=0), val_table.mean(axis=0)
+    def non_vectorized_hbpv_alpha1(r_hat):
+        return hb_p_value(r_hat, n, alpha1)
+    hbpv1 = np.vectorize(non_vectorized_hbpv_alpha1)
+    def non_vectorized_hbpv_alpha2(r_hat):
+        return hb_p_value(r_hat, n, alpha2)
+    hbpv2 = np.vectorize(non_vectorized_hbpv_alpha2)
+    pdb.set_trace()
+    p_values = np.maximum(hbpv1(cal_risks[0]), hbpv2(cal_risks[0]))
+    R = bonferroni(p_vales.flatten())
 
 if __name__ == "__main__":
-    X, y = get_data()
-    X_train, X_val, y_train, y_val = process_data(*shuffle_split(X,y))
-    regr = optimize_params_GBR(X_train, X_val, y_train, y_val)
-    pdb.set_trace()
-    print(y_val)
-
+    alpha1 = 0.1
+    alpha2 = 3
+    delta = 0.1
+    loss_table = get_loss_table(alpha1, alpha2)
+    ltt_calibrate_evaluate(loss_table, alpha1, alpha2, delta)
