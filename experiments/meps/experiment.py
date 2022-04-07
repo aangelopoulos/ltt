@@ -1,6 +1,8 @@
 import os, sys, inspect, itertools
 sys.path.insert(1, os.path.join(sys.path[0], '../../'))
 import numpy as np
+import random
+import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor, IsolationForest 
@@ -9,6 +11,10 @@ from scipy.stats import spearmanr
 from core.concentration import *
 from tqdm import tqdm
 import pdb
+
+def fix_randomness(seed=0):
+    np.random.seed(seed=seed)
+    random.seed(seed)
 
 def get_data():
     #df = pd.concat( [ pd.read_csv('./data/meps_19_reg.csv'), pd.read_csv('./data/meps_20_reg.csv'), pd.read_csv('./data/meps_21_reg.csv') ] )
@@ -143,13 +149,14 @@ def get_model_outputs():
         np.save('./.cache/error_scores_val.npy', error_scores_val)
     return X_val, y_val, mean_val, upper_val, lower_val, error_scores_val 
 
-def get_loss_table(alpha):
+def get_loss_table(alpha, num_lambdas):
     try:
         # encode loss (MSE) as 0th channel and abstentions as 1st channel.
         loss_table = np.load(f'./.cache/{alpha}_loss_table.npy')
+        lambdas = np.load(f'./.cache/lambdas.npy')
     except:
         X_val, y_val, mean_val, upper_val, lower_val, error_scores_val = get_model_outputs()
-        lambdas = np.array( [ np.quantile(error_scores_val, q) for q in np.linspace(0,1,10) ] )
+        lambdas = np.array( [ np.quantile(error_scores_val, q) for q in np.linspace(0,1,num_lambdas) ] )
         loss_table = np.zeros( (y_val.shape[0], 2, lambdas.shape[0]) )
         squared_errors = (mean_val - y_val)**2
         for i in range(lambdas.shape[0]):
@@ -157,10 +164,11 @@ def get_loss_table(alpha):
             # encode loss (MSE) as 0th channel and abstentions as 1st channel.
             loss_table[:,0,i] = (squared_errors * bool_predict) - alpha*bool_predict + alpha
             loss_table[:,1,i] = (~bool_predict).astype(float)
-        np.save('./.cache/{alpha}_loss_table.npy', loss_table)
-    return loss_table
+        np.save(f'./.cache/{alpha}_loss_table.npy', loss_table)
+        np.save(f'./.cache/{alpha}_lambdas.npy', lambdas)
+    return loss_table, lambdas
 
-def ltt_calibrate_evaluate(loss_table, alpha, delta):
+def ltt_calibrate_evaluate(rejection_region_fn, rejection_region_name, loss_table, alpha, delta):
     # encode loss (MSE) as 0th channel and abstentions as 1st channel.
     np.random.shuffle(loss_table)
     mse_table, abstention_table = loss_table[:,0,:], loss_table[:,1,:]
@@ -170,18 +178,71 @@ def ltt_calibrate_evaluate(loss_table, alpha, delta):
     cal_table, val_table = mse_table[:n], mse_table[n:]
     cal_risks, val_risks = cal_table.mean(axis=0), val_table.mean(axis=0)
     val_abstentions = abstention_table[n:].mean(axis=0)
-    def non_vectorized_hbpv_alpha(r_hat):
-        return hb_p_value(r_hat, n, alpha)
-    hbpv = np.vectorize(non_vectorized_hbpv_alpha)
-    pvals = hbpv(cal_risks)
-    valid = bonferroni_search(pvals, delta, 1)
-    ihat = valid[np.argmax( cal_risks[valid] )] # Get the minimum risk index
+    if rejection_region_name == "Uniform":
+        m = cal_table.shape[1]
+        valid = rejection_region_fn(cal_table,np.arange(cal_table.shape[1]),alpha,delta,m)
+    else:
+        valid = rejection_region_fn(cal_table,np.arange(cal_table.shape[1]),alpha,delta)
+    ihat = valid[np.argmax( cal_risks[valid] )] if len(valid) > 0 else 0# Get the minimum risk index
     risk_est = val_risks[ihat]
-    pdb.set_trace()
     abstention_est = val_abstentions[ihat] 
+    return risk_est, abstention_est
+
+def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
+    results_folder = './results/'
+    os.makedirs(results_folder, exist_ok=True)
+    fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
+
+    axs[1].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
+    axs[1].plot(lambdas,1-abstentions_curve,color='#AF6E4E',linewidth=3,label='frac predict')
+
+    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], orient='h', inner=None)
+    
+    axs[0].set_xlabel('MSE')
+    axs[0].locator_params(axis='x', nbins=4)
+    axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    #axs[0].set_yticklabels(labels)
+    axs[1].set_xlabel(r'$\lambda$')
+    axs[1].axhline(y=alpha, c='#999999', linestyle=':',label="$\\alpha$", alpha=0.7)
+    axs[1].legend(loc='upper left')
+    sns.despine(ax=axs[0],top=True,right=True)
+    sns.despine(ax=axs[1],top=True,right=True)
+    plt.tight_layout()
+    plt.savefig(results_folder + (f'mse_{alpha}_{delta}_results').replace('.','_') + '.pdf')
+
+def run_experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_trials,num_lambdas):
+    loss_table, lambdas = get_loss_table(alpha, num_lambdas)
+    risk_curve = loss_table[:,0,:].mean(axis=0)/loss_table[:,0,:].max()
+    abstentions_curve = loss_table[:,1,:].mean(axis=0)
+    risks, abstentions, region_names = [], [], []
+    print(f"{num_trials} trials running!")
+    for i in tqdm(range(num_trials)):
+        for j in range(len(rejection_region_functions)):
+            risk, abstention = ltt_calibrate_evaluate(rejection_region_functions[j], rejection_region_names[j], loss_table, alpha, delta)
+            risks += [risk]
+            abstentions += [abstention]
+            region_names += [rejection_region_names[j]]
+    df = pd.DataFrame.from_dict({"MSE":np.array(risks), "Fraction Abstentions": np.array(abstentions), "Region Name": np.array(region_names)})
+    plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta)
 
 if __name__ == "__main__":
+    sns.set(palette='pastel',font='serif')
+    sns.set_style('white')
+    fix_randomness()
+
     alpha = 0.1 
     delta = 0.1
-    loss_table = get_loss_table(alpha)
-    ltt_calibrate_evaluate(loss_table, alpha, delta)
+    num_trials = 100
+    num_lambdas = 1000
+    # local function to preserve template
+    def _bonferroni_search_HB_J1(loss_table,lambdas,alpha,delta):
+        return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=num_lambdas)
+
+    # local function to preserve template
+    def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
+        return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
+    #rejection_region_functions = (bonferroni_HB,)
+    #rejection_region_names = ('Bonferroni',)
+    rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1 )
+    rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence' )
+    run_experiment(rejection_region_functions, rejection_region_names, alpha, delta, num_trials, num_lambdas)
