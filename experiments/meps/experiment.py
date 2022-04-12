@@ -191,24 +191,32 @@ def ltt_calibrate_evaluate(rejection_region_fn, rejection_region_name, loss_tabl
 def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
     results_folder = './results/'
     os.makedirs(results_folder, exist_ok=True)
-    fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
+    fig, axs = plt.subplots(nrows=1,ncols=3,figsize=(12,3))
 
-    axs[1].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
-    axs[1].plot(lambdas,1-abstentions_curve,color='#AF6E4E',linewidth=3,label='frac predict')
+    axs[2].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
+    axs[2].plot(lambdas,abstentions_curve,color='#AF6E4E',linewidth=3,label='Fraction Abstentions')
 
     sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], orient='h', inner=None)
+    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], orient='h', inner=None)
     
     axs[0].set_xlabel('MSE')
     axs[0].locator_params(axis='x', nbins=4)
     axs[0].axvline(x=alpha,c='#999999',linestyle='--',alpha=0.7)
+    axs[0].text(alpha-0.002, 1, r'$\alpha$', color='#999999')
+    axs[1].set_xlabel('Fraction Abstentions')
+    axs[1].locator_params(axis='x', nbins=4)
+    axs[1].set_ylabel('')
+    axs[1].set_yticks([])
+    axs[1].set_yticklabels([])
     #axs[0].set_yticklabels(labels)
-    axs[1].set_xlabel(r'$\lambda$')
-    axs[1].axhline(y=alpha, c='#999999', linestyle=':',label="$\\alpha$", alpha=0.7)
-    axs[1].legend(loc='upper left')
+    axs[2].set_xlabel(r'$\lambda$')
+    axs[2].axhline(y=alpha, c='#999999', linestyle=':',label="$\\alpha$", alpha=0.7)
+    axs[2].legend(loc='upper left')
     sns.despine(ax=axs[0],top=True,right=True)
     sns.despine(ax=axs[1],top=True,right=True)
+    sns.despine(ax=axs[2],top=True,right=True)
     plt.tight_layout()
-    plt.savefig(results_folder + (f'mse_{alpha}_{delta}_results').replace('.','_') + '.pdf')
+    plt.savefig(results_folder + (f'meps_{alpha}_{delta}_results').replace('.','_') + '.pdf')
 
 def run_experiment(rejection_region_functions,rejection_region_names,alpha,delta,num_trials,num_lambdas):
     loss_table, lambdas = get_loss_table(alpha, num_lambdas)
