@@ -23,7 +23,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     fig, axs = plt.subplots(nrows=1,ncols=2,figsize=(12,3))
 
     axs[1].plot(lambdas,pfdps,color='k',linewidth=3,label='pFDP')
-    axs[1].plot(lambdas,frac_predict,color='#AF6E4E',linewidth=3,label='avg size')
+    axs[1].plot(lambdas,1-frac_predict,color='#AF6E4E',linewidth=3,label='Fraction\nAbstentions')
 
     pfdps = []
     labels = []
