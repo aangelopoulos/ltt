@@ -25,6 +25,7 @@ dependencies:
     - iopath
     - detectron2
     - omegaconf
+    - scikit-learn
     - pip:
         - randaugment
         - opencv-contrib-python

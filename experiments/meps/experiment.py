@@ -175,7 +175,11 @@ def ltt_calibrate_evaluate(rejection_region_fn, rejection_region_name, loss_tabl
     mse_max = mse_table.max()
     mse_table = mse_table/mse_max # scale all to 0-1
     n = mse_table.shape[0]//2
+    print(f"Number of calibration samples: {n}")
     cal_table, val_table = mse_table[:n], mse_table[n:]
+    cal_abstentions = abstention_table[:n].sum(axis=0)
+    enough_data_points = (n - cal_abstentions) >= 25
+    cal_table, val_table, abstention_table = cal_table[:,enough_data_points], val_table[:,enough_data_points], abstention_table[:,enough_data_points]
     cal_risks, val_risks = cal_table.mean(axis=0), val_table.mean(axis=0)
     val_abstentions = abstention_table[n:].mean(axis=0)
     if rejection_region_name == "Uniform":
@@ -196,8 +200,8 @@ def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
     axs[2].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
     axs[2].plot(lambdas,abstentions_curve,color='#AF6E4E',linewidth=3,label='Fraction Abstentions')
 
-    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], orient='h', inner=None)
-    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], orient='h', inner=None)
+    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], cut=0, orient='h', inner=None)
+    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], cut=0, orient='h', inner=None)
     
     axs[0].set_xlabel('MSE')
     axs[0].locator_params(axis='x', nbins=4)
@@ -208,7 +212,6 @@ def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
     axs[1].set_ylabel('')
     axs[1].set_yticks([])
     axs[1].set_yticklabels([])
-    #axs[0].set_yticklabels(labels)
     axs[2].set_xlabel(r'$\lambda$')
     axs[2].axhline(y=alpha, c='#999999', linestyle=':',label="$\\alpha$", alpha=0.7)
     axs[2].legend(loc='upper left')
@@ -241,7 +244,7 @@ if __name__ == "__main__":
     alpha = 0.1 
     delta = 0.1
     num_trials = 100
-    num_lambdas = 1000
+    num_lambdas = 10000
     # local function to preserve template
     def _bonferroni_search_HB_J1(loss_table,lambdas,alpha,delta):
         return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=num_lambdas)
@@ -249,8 +252,6 @@ if __name__ == "__main__":
     # local function to preserve template
     def _bonferroni_search_HB(loss_table,lambdas,alpha,delta):
         return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=10)
-    #rejection_region_functions = (bonferroni_HB,)
-    #rejection_region_names = ('Bonferroni',)
     rejection_region_functions = ( uniform_region, bonferroni_HB, _bonferroni_search_HB, _bonferroni_search_HB_J1 )
     rejection_region_names = ( 'Uniform', 'Bonferroni', 'Fixed Sequence\n(Multi-Start)', 'Fixed Sequence' )
     run_experiment(rejection_region_functions, rejection_region_names, alpha, delta, num_trials, num_lambdas)
