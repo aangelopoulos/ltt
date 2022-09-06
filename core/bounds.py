@@ -22,6 +22,9 @@ def bentkus_plus(mu, x, n):
 def bentkus_minus(mu, x, n):
     return np.log(max(binom.cdf(np.ceil(n*x),n,mu),1e-10))+1
 
+def binom_p_value(r_hat,n,alpha):
+    return binom.cdf(np.ceil(n*r_hat),n,alpha)
+
 def hb_p_value(r_hat,n,alpha):
     bentkus_p_value = np.e * binom.cdf(np.ceil(n*r_hat),n,alpha)
     def h1(y,mu):

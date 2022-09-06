@@ -13,9 +13,17 @@ import pickle as pkl
 from utils import *
 from core.uniform_concentration import nu_plus, r_minus 
 from core.concentration import * 
-from core.bounds import hb_p_value, HB_mu_plus, HB_mu_minus
+from core.bounds import binom_p_value, HB_mu_plus, HB_mu_minus
 from tqdm import tqdm
 CACHE = str(Path(__file__).parent.absolute()) + '/.cache/'
+
+def get_selective_risk_p_values(score_vector, correct_vector, lambdas, alpha):
+    # Define selective risk
+    def selective_risk(lam): return (1-correct_vector[score_vector > lam]).sum()/(score_vector  > lam).sum()
+    def nlambda(lam): return (score_vector  > lam).sum()
+    cut_lambdas = np.array([lam for lam in lambdas if nlambda(lam) >= 25]) # Make sure there's some data in the top bin.
+    p_values = np.array([binom_p_value(selective_risk(lam),nlambda(lam),alpha) for lam in cut_lambdas])
+    return p_values, cut_lambdas
 
 def get_nus_rs_n(score_vector, correct_vector, lambdas):
     try:
@@ -42,74 +50,13 @@ def pfdr_loss_table(score_vector, correct_vector, lambdas, alpha):
     return loss_table
 
 """
-    RW SPECIALIZATIONS
-"""
-
-def pfdr_romano_wolf_multiplier_bootstrap(score_vector, correct_vector, lambdas, alpha, delta, B=100): 
-    n = score_vector.shape[0]
-    N = lambdas.shape[0]
-    loss_table = pfdr_loss_table(score_vector, correct_vector, lambdas, alpha)
-    r_hats = loss_table.mean(axis=0) # empirical risk at each lambda
-    z_table = loss_table - loss_table.mean(axis=0)[np.newaxis,:] # Broadcast so Z_{i,j}=l_{i,j}-mean_i(l_{i,j})
-    es = np.random.random(size=(n,B))
-    cs = np.zeros((B,N))
-    # Bootstrapping
-    for b in range(B):
-        cs[b] = np.mean(z_table * es[:,b:b+1],axis=0)
-    def subset_scoring_function(S):
-        idx = np.array(list(S))
-        subset = cs[:,idx]
-        maxes = np.max(subset,axis=1)
-        return -np.quantile(maxes,1-delta,interpolation='higher') # Weird negative due to flipped sign in romano-wolf algorithm 
-    return romano_wolf(-(alpha-r_hats),subset_scoring_function)
-
-# correct_vector_i = 1(top class is correct on example i)
-# score_vector_i = score of top class for example i
-def pfdr_romano_wolf_HB(score_vector,correct_vector,lambdas,alpha,delta):
-    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
-    r_hats = nus - alpha*rs + alpha
-    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
-    p_values = np.nan_to_num(p_values, nan=1.0)
-    def subset_scoring_function(S):
-        return delta/len(S)
-    #return np.nonzero(nus - alpha * rs + alpha < alpha)[0]
-    return romano_wolf(p_values,subset_scoring_function)
-
-"""
     BONFERRONI SPECIALIZATIONS 
 """
 
-# correct_vector_i = 1(top class is correct on example i)
-# score_vector_i = score of top class for example i
-def pfdr_bonferroni_HB(score_vector,correct_vector,lambdas,alpha,delta):
-    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
-    r_hats = nus-alpha*rs+alpha
-    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
+def pfdr_bonferroni_binom(score_vector,correct_vector,lambdas,alpha,delta):
+    p_values, _ = get_selective_risk_p_values(score_vector,correct_vector,lambdas,alpha)
     p_values = np.nan_to_num(p_values, nan=1.0)
     return bonferroni(p_values,delta)
-
-def pfdr_ucb_HB(n, nu, r, delta, maxiter):
-    nu_p = HB_mu_plus(nu, n, delta, maxiter)
-    r_m = HB_mu_minus(r, n, delta, maxiter)
-    if r_m <= 0 and nu_p > 0:
-        return np.Inf 
-    if nu_p <= 0:
-        return 0 
-    return nu_p/r_m
-
-def pfdr_HB(score_vector, correct_vector, lambdas, alpha, delta, m=1000, maxiter=1000):
-    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
-    starting_index = (nus/rs < alpha).nonzero()[0][0]
-
-    pfdr_pluses = torch.tensor( [ pfdr_ucb_HB(n, nus[i], rs[i], delta, maxiter) for i in range(starting_index, calib_nu.shape[0]) ] )
-
-    if ((pfdr_pluses > alpha).float().sum() == 0):
-        valid_set_index = 0
-    else:
-        valid_set_index = max((pfdr_pluses > alpha).nonzero()[0][0]+starting_index-1, 0)  # -1 because it needs to be <= alpha
-    
-    R = np.array([valid_set_index,])
-    return R
 
 def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=1000,num_grid_points=None):
     nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
@@ -126,14 +73,9 @@ def pfdr_uniform(score_vector,correct_vector,lambdas,alpha,delta,m=1000,maxiter=
 """
     BONFERRONI SEARCH SPECIALIZATIONS 
 """
-def pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta, downsample_factor=10):
-    nus, rs, n = get_nus_rs_n(score_vector, correct_vector, lambdas)
-    N = lambdas.shape[0]
-    r_hats = [ nus[i]-alpha*rs[i]+alpha for i in range(len(nus)) ] # using lihua's note, empirical risk at each lambda
-    p_values = np.array([hb_p_value(r_hat,n,alpha) for r_hat in r_hats])
-    p_values = np.nan_to_num(p_values, nan=1.0)
-    p_values[-1] = 0.0
-    R = N-bonferroni_search(p_values[::-1],delta,downsample_factor)-1
+def pfdr_bonferroni_search_binom(score_vector, correct_vector, lambdas, alpha, delta, downsample_factor=10):
+    p_values, _ = get_selective_risk_p_values(score_vector,correct_vector,lambdas,alpha)
+    R = lambdas.shape[0] -  bonferroni_search(p_values[::-1],delta,lambdas.shape[0])[::-1] - 1
     return R 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ import seaborn as sns
 from core.uniform_concentration import *
 from core.pfdr import *
 from lambda_vs_pfdr import get_lambdas_vs_pfdps_frac_predict
+from scipy.stats import binom
+from scipy.optimize import brentq
 import pdb
 
 def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
@@ -29,8 +31,8 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
     labels = []
     for i in range(len(df_list)):
         df = df_list[i]
-        if df.pFDP.sum() <= 1e-3:
-            continue
+        #if df.pFDP.sum() <= 1e-3:
+        #    continue
         region_name = df["region name"][0]
         if region_name == "Multiplier Bootstrap":
             region_name = "Multiplier\nBootstrap"
@@ -39,7 +41,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
         pfdps = pfdps + [np.array(df['pFDP'].tolist()),]
         labels = labels + [region_name,]
 
-    sns.violinplot(data=pfdps, ax=axs[0], orient='h', inner=None)
+    sns.violinplot(data=pfdps, ax=axs[0], orient='h', cut=0, inner=None)
     
     axs[0].set_xlabel('pFDP')
     axs[0].locator_params(axis='x', nbins=4)
@@ -66,8 +68,9 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
     calib_scores, indexes = calib_scores.sort()
     calib_corrects = calib_corrects[indexes] 
-    calib_accuracy = (calib_corrects.flip(dims=(0,)).cumsum(dim=0)/(torch.tensor(range(num_calib))+1)).flip(dims=(0,))
-    calib_abstention_freq = (torch.tensor(range(num_calib))+1).float().flip(dims=(0,))/num_calib
+
+    def nlambda(lam): return (calib_scores > lam).sum()
+    lambdas = np.array([lam for lam in lambdas if nlambda(lam) >= 25]) # Make sure there's some data in the top bin.
 
     R = rejection_region_function(calib_scores.numpy(), calib_corrects.numpy(), lambdas, alpha, delta)
 
@@ -87,11 +90,9 @@ def trial_precomputed(rejection_region_function, top_scores, corrects, alpha, de
 
 def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir):
     df_list = []
-    def monotonic_pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta):
-        return pfdr_bonferroni_search_HB(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=lambdas.shape[0])
-    #rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB, pfdr_romano_wolf_multiplier_bootstrap) 
-    rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_HB, pfdr_bonferroni_search_HB, monotonic_pfdr_bonferroni_search_HB) 
-    #rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence",'Multiplier\nBootstrap')
+    def monotonic_pfdr_bonferroni_search_binom(score_vector, correct_vector, lambdas, alpha, delta):
+        return pfdr_bonferroni_search_binom(score_vector, correct_vector, lambdas, alpha, delta,downsample_factor=lambdas.shape[0])
+    rejection_region_functions = (pfdr_uniform, pfdr_bonferroni_binom, pfdr_bonferroni_search_binom, monotonic_pfdr_bonferroni_search_binom) 
     rejection_region_names = ("Uniform","Bonferroni",'Fixed Sequence\n(Multi-Start)',"Fixed Sequence")
 
     for idx in range(len(rejection_region_functions)):
@@ -113,9 +114,6 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
             top_scores, top_classes = (logits/T.cpu()).softmax(dim=1).max(dim=1)
             corrects = top_classes==labels
 
-            #if rejection_region_name == "HBBonferroniSearch_J=1":
-            #    pdb.set_trace()
-
             with torch.no_grad():
                 local_df_list = []
                 for i in tqdm(range(num_trials)):
@@ -128,7 +126,7 @@ def experiment(alpha,delta,lambdas,num_calib,num_trials,maxiter,imagenet_val_dir
                                     "index": [0],
                                     "region name": rejection_region_name,
                                  }
-                    df_local = pd.DataFrame(dict_local)
+                    df_local = pd.DataFrame([dict_local,])
                     local_df_list = local_df_list + [df_local]
                 df = pd.concat(local_df_list, axis=0, ignore_index=True)
                 df.to_pickle(fname)
@@ -163,15 +161,15 @@ if __name__ == "__main__":
     sns.set_style('white')
     fix_randomness(seed=0)
 
-    imagenet_val_dir = '/scratch/group/ilsvrc/val' #TODO: Replace this with YOUR location of imagenet val set.
+    imagenet_val_dir = '/home/group/ilsvrc/val' #TODO: Replace this with YOUR location of imagenet val set.
 
     alphas = [0.15,0.1,0.05]
     deltas = [0.1,0.1,0.1]
     params = list(zip(alphas,deltas))
     maxiter = int(1e3)
     num_trials = 100 
-    num_calib = 30000
-    lambdas = np.linspace(0,1,1000)
+    num_calib = 5000
+    lambdas = np.linspace(0,1,10000)
     
     for alpha, delta in params:
         print(f"\n\n\n ============           NEW EXPERIMENT alpha={alpha} delta={delta}           ============ \n\n\n") 
