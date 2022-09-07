@@ -175,7 +175,6 @@ def ltt_calibrate_evaluate(rejection_region_fn, rejection_region_name, loss_tabl
     mse_max = mse_table.max()
     mse_table = mse_table/mse_max # scale all to 0-1
     n = mse_table.shape[0]//2
-    print(f"Number of calibration samples: {n}")
     cal_table, val_table = mse_table[:n], mse_table[n:]
     cal_abstentions = abstention_table[:n].sum(axis=0)
     enough_data_points = (n - cal_abstentions) >= 25
@@ -200,8 +199,8 @@ def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
     axs[2].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
     axs[2].plot(lambdas,abstentions_curve,color='#AF6E4E',linewidth=3,label='Fraction Abstentions')
 
-    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], cut=0, orient='h', inner=None)
-    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], cut=0, orient='h', inner=None)
+    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], orient='h', inner=None)
+    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], orient='h', inner=None)
     
     axs[0].set_xlabel('MSE')
     axs[0].locator_params(axis='x', nbins=4)

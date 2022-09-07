@@ -41,7 +41,7 @@ def plot_histograms(df_list,alpha,delta,pfdps,frac_predict,lambdas):
         pfdps = pfdps + [np.array(df['pFDP'].tolist()),]
         labels = labels + [region_name,]
 
-    sns.violinplot(data=pfdps, ax=axs[0], orient='h', cut=0, inner=None)
+    sns.violinplot(data=pfdps, ax=axs[0], orient='h', inner=None)
     
     axs[0].set_xlabel('pFDP')
     axs[0].locator_params(axis='x', nbins=4)
