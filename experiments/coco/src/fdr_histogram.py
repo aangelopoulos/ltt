@@ -22,7 +22,7 @@ import pdb
 
 parser = argparse.ArgumentParser(description='ASL MS-COCO predictor')
 
-parser.add_argument('--model_path',type=str,default='./ASL/models_local/MS_COCO_TResNet_xl_640_88.4.pth')
+parser.add_argument('--model_path',type=str,default='~/Code/conformal-prediction/data/coco/MS_COCO_TResNet_xl_640_88.4.pth')
 parser.add_argument('--dset_path',type=str,default='../data/')
 parser.add_argument('--model_name',type=str,default='tresnet_xl')
 parser.add_argument('--input_size',type=int,default=640)
@@ -72,6 +72,7 @@ def get_example_fdr_and_size_tables(scores, labels, lambdas_example_table):
             loss_table[:,j] = loss 
             sizes_table[:,j] = sizes
 
+        os.makedirs('../.cache',exist_ok=True)
         np.save(fname_loss, loss_table)
         np.save(fname_sizes, sizes_table)
 
@@ -144,10 +145,12 @@ def plot_histograms(df_list,alpha,delta):
     ax.tick_params(axis='both', labelsize=14)
     sns.despine(ax=ax,top=True,right=True)
     plt.tight_layout()
+    os.makedirs('../outputs',exist_ok=True)
     plt.savefig('../' + (f'outputs/violins_tables/{alpha}_{delta}_coco_violins').replace('.','_') + '.pdf')
 
     # Second plot: sizes table
     table_string = table_function(sizes_arrays,labels)
+    os.makedirs('../outputs',exist_ok=True)
     table_file = open('../' + (f'outputs/violins_tables/{alpha}_{delta}_coco_table').replace('.','_') + '.txt', "w")
     n = table_file.write(table_string)
     table_file.close()
@@ -227,13 +230,13 @@ if __name__ == "__main__":
         sns.set_style('white')
         fix_randomness(seed=0)
         args = parse_args(parser)
-        coco_val_2017_directory = '../data/val2017'
-        coco_instances_val_2017_json = '../data/annotations_trainval2017/instances_val2017.json'
+        coco_val_2017_directory = '/home/group/coco/val2017'
+        coco_instances_val_2017_json = '/home/group/coco/annotations/instances_val2017.json'
 
         alphas = [0.5,0.2,0.1,0.05]
         deltas = [0.1,0.1,0.1,0.1]
         params = list(zip(alphas,deltas))
-        num_lam = 1500 
+        num_lam = 10000 
         num_calib = 4000 
         num_trials = 100 
         lambdas_example_table = np.linspace(0,1,num_lam)

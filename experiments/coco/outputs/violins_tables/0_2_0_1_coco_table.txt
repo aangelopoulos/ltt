@@ -1,5 +1,5 @@
 Uniform & 3 & 4 & 6 & 11 & 13\\
-Bonferroni & 3 & 4 & 7 & 11 & 14\\
+Bonferroni & 3 & 4 & 6 & 11 & 14\\
 Fixed Sequence
 (Multi-Start) & 3 & 4 & 7 & 11 & 14\\
-Fixed Sequence & 3 & 5 & 7 & 12 & 14\\
+Fixed Sequence & 3 & 5 & 7 & 11 & 14\\

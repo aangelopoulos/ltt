@@ -30,3 +30,4 @@ dependencies:
         - randaugment
         - opencv-contrib-python
         - xport
+        - inplace-abn
