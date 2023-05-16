@@ -177,7 +177,7 @@ def graphical_bonferroni_search_HB(loss_table, lambdas_list, alphas, delta, frac
     n = loss_table.shape[0]
     n1 = np.floor(n * frac_data_split)
     perm = torch.randperm(n)
-    selection_table, calib_table = (loss_tables[:n1],loss_tables[n1:])
+    selection_table, calib_table = (loss_table[perm][:n1],loss_table[perm][n1:])
 
     out_list = torch.meshgrid([torch.tensor(lams) for lams in lambdas_list])
     out_list = [lams.flatten() for lams in out_list] 
