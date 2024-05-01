@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import binom
+from scipy.stats import binom, norm
 from scipy.optimize import brentq
 from confseq import betting
 import pdb
@@ -44,7 +44,7 @@ def wsr_p_value(losses, alpha, delta=0.1):
 
     return pval
 
-def clt_pval(r_hat, sigma_hat, n, alpha):
+def clt_p_value(r_hat, sigma_hat, n, alpha):
     pval = norm.cdf((np.sqrt(n)*(r_hat-alpha))/sigma_hat)
     return pval
 

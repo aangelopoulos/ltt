@@ -1,7 +1,9 @@
-import os
-# import from parent of current directory
-import sys
-sys.path.append('../../../')
+import os, sys
+# import from parent of absolute path of this file
+curr_dir = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
+print(dir_path)
+sys.path.append(dir_path)
 import json
 import numpy as np
 import pandas as pd
@@ -13,13 +15,8 @@ from core.bounds import hb_p_value, wsr_p_value, clt_p_value
 from confseq import betting
 
 # Load cached data
-if not os.path.exists('../data'):
-    os.system('gdown 1h7S6N_Rx7gdfO3ZunzErZy6H7620EbZK -O ../data.tar.gz')
-    os.system('tar -xf ../data.tar.gz -C ../')
-    os.system('rm ../data.tar.gz')
-
-data = np.load('../data/coco/coco-tresnetxl.npz')
-example_paths = os.listdir('../data/coco/examples')
+data = np.load(curr_dir + '/notebook_data/coco-tresnetxl.npz')
+example_paths = os.listdir(curr_dir + '/notebook_data/examples')
 
 sgmd = data['sgmd'] # sigmoid scores
 labels = data['labels']
@@ -53,22 +50,24 @@ for trial in range(num_trials):
         cal_sgmd, val_sgmd = sgmd[idx,:], sgmd[~idx,:]
         cal_labels, val_labels = labels[idx], labels[~idx]
 
-        fdrs = false_discovery_rate(cal_sgmd >= (lhat_bentkus - 1/len(lambdas)), cal_labels)
 
 # Scan to choose lambda hat (Bentkus)
         for lhat_bentkus in np.flip(lambdas):
+            fdrs = false_discovery_rate(cal_sgmd >= (lhat_bentkus - 1/len(lambdas)), cal_labels)
             if hb_p_value(fdrs.mean(), n, alpha) > delta: break
 # Deploy procedure on test data
         prediction_sets_bentkus = val_sgmd >= lhat_bentkus
 
 # Scan to choose lambda hat (Betting)
         for lhat_betting in np.flip(lambdas):
+            fdrs = false_discovery_rate(cal_sgmd >= (lhat_betting - 1/len(lambdas)), cal_labels)
             if wsr_p_value(fdrs, alpha, delta=delta) > delta: break
 # Deploy procedure on test data
         prediction_sets_betting = val_sgmd >= lhat_betting
 
 # Scan to choose lambda hat (CLT)
         for lhat_clt in np.flip(lambdas):
+            fdrs = false_discovery_rate(cal_sgmd >= (lhat_clt - 1/len(lambdas)), cal_labels)
             if clt_p_value(fdrs.mean(),  fdrs.std(), n, alpha) > delta: break
 
 # Deploy procedure on test data
