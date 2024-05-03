@@ -85,7 +85,7 @@ def optimize_params_GBR(X_train, X_val, y_train, y_val, alpha=0.1):
         n_ests = [100,]
         subsamples = [1,]
         max_depths = [10,25] 
-        optim_df = pd.DataFrame(columns = ['lr','n_estimators', 'subsample', 'max_depth', 'cvg'])
+        optim_df = []
         for lr, n_estimators, subsample, max_depth in tqdm(itertools.product(lrs, n_ests, subsamples, max_depths)):
             mean = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth)
             upper = GradientBoostingRegressor(random_state=0, learning_rate=lr, n_estimators=n_estimators, subsample=subsample, max_depth=max_depth, alpha=1-alpha/2, loss='quantile')
@@ -100,14 +100,15 @@ def optimize_params_GBR(X_train, X_val, y_train, y_val, alpha=0.1):
             mse = ( (y_val - pred_mean)**2 ).mean()
             cvg = ( (y_val <= pred_upper) & (y_val >= pred_lower) ).mean()
             optim_dict = { 'lr' : lr,'n_estimators' : n_estimators, 'subsample' : subsample, 'max_depth' : max_depth, 'mse' : mse, 'cvg' : cvg }
-            optim_df = optim_df.append(optim_dict, ignore_index=True)
+            optim_df += [pd.DataFrame([optim_dict])]
             tqdm.write(str(optim_dict))
+        optim_df = pd.concat(optim_df, ignore_index=True)
         os.makedirs('./.cache/', exist_ok=True)
         optim_df.to_pickle(filename)
     idx_quantiles = np.argmin(np.abs(optim_df['cvg']-(1-alpha)))
     idx_mean = np.argmin(optim_df['mse'])
-    optim_df_quantiles = optim_df.loc[idx_quantiles]
-    optim_df_mean = optim_df.loc[idx_mean]
+    optim_df_quantiles = optim_df.iloc[idx_quantiles]
+    optim_df_mean = optim_df.iloc[idx_mean]
     # GBR
     mean = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_mean['lr'], n_estimators=int(optim_df_mean['n_estimators']), subsample=optim_df_mean['subsample'], max_depth=int(optim_df_mean['max_depth']), alpha=1-alpha/2, loss='quantile')
     upper = GradientBoostingRegressor(random_state=0, learning_rate=optim_df_quantiles['lr'], n_estimators=int(optim_df_quantiles['n_estimators']), subsample=optim_df_quantiles['subsample'], max_depth=int(optim_df_quantiles['max_depth']), alpha=1-alpha/2, loss='quantile')
@@ -199,8 +200,8 @@ def plots(df, risk_curve, abstentions_curve, lambdas, alpha, delta):
     axs[2].plot(lambdas,risk_curve,color='k',linewidth=3,label='MSE')
     axs[2].plot(lambdas,abstentions_curve,color='#AF6E4E',linewidth=3,label='Fraction Abstentions')
 
-    sns.violinplot(data=df, x="MSE", y="Region Name", ax=axs[0], orient='h', inner=None)
-    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", ax=axs[1], orient='h', inner=None)
+    sns.violinplot(data=df, x="MSE", y="Region Name", hue="Region Name", ax=axs[0], orient='h', inner=None)
+    sns.violinplot(data=df, x="Fraction Abstentions", y="Region Name", hue="Region Name", ax=axs[1], orient='h', inner=None)
     
     axs[0].set_xlabel('MSE')
     axs[0].locator_params(axis='x', nbins=4)
@@ -240,10 +241,10 @@ if __name__ == "__main__":
     sns.set_style('white')
     fix_randomness()
 
-    alpha = 0.1 
-    delta = 0.1
+    alpha = 0.15
+    delta = 0.2
     num_trials = 100
-    num_lambdas = 10000
+    num_lambdas = 1000
     # local function to preserve template
     def _bonferroni_search_HB_J1(loss_table,lambdas,alpha,delta):
         return bonferroni_search_HB(loss_table,lambdas,alpha,delta,downsample_factor=num_lambdas)

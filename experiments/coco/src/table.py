@@ -27,7 +27,7 @@ ns = [50,100,250,500,1000,2000,4000] # number of calibration points
 alpha = 0.2 # 1-alpha is the desired false discovery rate
 delta = 0.1 # delta is the failure rate
 lambdas = np.linspace(0.1,0.9,5000)
-num_trials = 2
+num_trials = 10
 
 def false_discovery_rate(prediction_set, gt_labels):
     numerator = (prediction_set * gt_labels).sum(axis=1)
@@ -112,5 +112,5 @@ df = pd.concat(df)
 pivot_df = df.pivot_table(index='n', columns='bound', values=['FDR', 'TPR', 'lhat'])
 
 # Output the LaTeX code
-latex_table = pivot_df.to_latex(multicolumn=True, multicolumn_format='c', escape=False)
+latex_table = pivot_df.to_latex(multicolumn=True, multicolumn_format='c', escape=False, float_format="%.3f")
 print(latex_table)
