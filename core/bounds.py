@@ -1,6 +1,7 @@
 import numpy as np
-from scipy.stats import binom
+from scipy.stats import binom, norm
 from scipy.optimize import brentq
+from confseq import betting
 import pdb
 
 def h1(y, mu):
@@ -33,9 +34,23 @@ def hb_p_value(r_hat,n,alpha):
     hoeffding_p_value = np.exp(-n*h1(min(r_hat,alpha),alpha))
     return min(bentkus_p_value,hoeffding_p_value)
 
+def wsr_p_value(losses, alpha, delta=0.1):
+    n = len(losses)
+    _wsr_lbda_fns_positive = lambda x, m: betting.lambda_predmix_eb(x, alpha=delta, fixed_n=n)
+    _wsr_lbda_fns_negative = None
+
+    martingale = betting.betting_mart(losses,alpha,delta,lambdas_fn_positive=_wsr_lbda_fns_positive,lambdas_fn_negative=_wsr_lbda_fns_negative)
+    pval = (1/martingale).min()
+
+    return pval
+
+def clt_p_value(r_hat, sigma_hat, n, alpha):
+    pval = norm.cdf((np.sqrt(n)*(r_hat-alpha))/sigma_hat)
+    return pval
+
 def HB_mu_plus(muhat, n, delta, maxiters):
     def _tailprob(mu):
-        hoeffding_mu = hoeffding_plus(mu, muhat, n) 
+        hoeffding_mu = hoeffding_plus(mu, muhat, n)
         bentkus_mu = bentkus_plus(mu, muhat, n)
         return min(hoeffding_mu, bentkus_mu) - np.log(delta)
     if _tailprob(1-1e-10) > 0:
@@ -45,7 +60,7 @@ def HB_mu_plus(muhat, n, delta, maxiters):
 
 def HB_mu_minus(muhat, n, delta, maxiters):
     def _tailprob(mu):
-        hoeffding_mu = hoeffding_minus(mu, muhat, n) 
+        hoeffding_mu = hoeffding_minus(mu, muhat, n)
         bentkus_mu = bentkus_minus(mu, muhat, n)
         return min(hoeffding_mu, bentkus_mu) - np.log(delta)
     pdb.set_trace()

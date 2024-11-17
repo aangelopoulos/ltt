@@ -10,6 +10,7 @@ from statsmodels.stats.multitest import multipletests
 import pdb
 from pathlib import Path
 import pickle as pkl
+import pandas as pd
 from core.utils import *
 from core.bounds import hb_p_value, HB_mu_plus, HB_mu_minus
 from core.uniform_concentration import nu_plus
@@ -295,60 +296,60 @@ def get_simulation_and_rejection_regions(n,N,m,delta,alpha,corr,peak,downsample_
     return list(labels), endpoints.tolist(), list((alpha,)*len(labels))
 
 if __name__ == "__main__":
-    n = 4000
+    ns = [100, 500, 1000, 4000]
     N = 1000
     m = 1000
     delta = 0.1
     alphas = (0.1, 0.15, 0.2)
     # Define the correlation of the AR noise process
     corr = 0.9 
-    peaks = (0.8,0.4)
+    peaks = (0.4,)
     downsample_factor = 10
 
-    
-    for peak in peaks:
-        labels = []
-        endpoints = []
-        alpha_list = []
-        for i in reversed(range(len(alphas))):
-            out = get_simulation_and_rejection_regions(n,N,m,delta,alphas[i],corr,peak,downsample_factor)
-            labels = labels + out[0]
-            endpoints = endpoints + out[1]
-            alpha_list = alpha_list + out[2]
+    for n in ns:
+        for peak in peaks:
+            labels = []
+            endpoints = []
+            alpha_list = []
+            for i in reversed(range(len(alphas))):
+                out = get_simulation_and_rejection_regions(n,N,m,delta,alphas[i],corr,peak,downsample_factor)
+                labels = labels + out[0]
+                endpoints = endpoints + out[1]
+                alpha_list = alpha_list + out[2]
 
-        labels = np.array(labels)
-        endpoints = np.array(endpoints)
-        alpha_list = np.array(alpha_list)
+            labels = np.array(labels)
+            endpoints = np.array(endpoints)
+            alpha_list = np.array(alpha_list)
 
-        table_string = ""
-        for label in np.unique(labels):
-            table_string += f"{label} "
-            for a in np.unique(alpha_list):
-                endpoint = endpoints[(labels==label) & (alpha_list==a)]
-                table_string += f"& {endpoint[0]:.2f}"
-            table_string += "\\\\\n"
+            table_string = ""
+            for label in np.unique(labels):
+                table_string += f"{label} "
+                for a in np.unique(alpha_list):
+                    endpoint = endpoints[(labels==label) & (alpha_list==a)]
+                    table_string += f"& {endpoint[0]:.2f}"
+                table_string += "\\\\\n"
 
-        table_file = open('../outputs/concentration_results/' + f'{str(peak)}_table'.replace(".","_") + '.txt', "w")
-        n = table_file.write(table_string)
-        table_file.close()
+            table_file = open('../outputs/concentration_results/' + f'{str(peak)}_table'.replace(".","_") + f"_n={str(n)}" + '.txt', "w")
+            n = table_file.write(table_string)
+            table_file.close()
 
-        # Now plot true signal
-        plt.figure()
-        i = -1
-        signal = np.concatenate((np.linspace(peak,alphas[i]/4,int(np.floor(N/2))),np.linspace(alphas[i]/4,peak,int(np.ceil(N/2)))),axis=0)
-        lambdas = np.linspace(0,1,N)
-        plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
-        #plt.plot(lambdas,loss_table.mean(axis=0),alpha=1,color='k',linewidth=3, label="Empirical Risk")
-        plt.gca().axhline(alphas[i],xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
-        plt.gca().set_xlabel(r'$\lambda$',fontsize=20)
-        plt.gca().set_ylabel('True Risk',fontsize=20)
-        plt.gca().set_yticks([0,0.25,0.5,0.75,1])
-        plt.gca().set_xticks([0,0.25,0.5,0.75,1])
-        xticklabels = plt.gca().get_xticklabels()
-        plt.setp(xticklabels, rotation=45, fontsize=15)
-        yticklabels = plt.gca().get_yticklabels()
-        plt.setp(yticklabels, fontsize=15)
-        #plt.xlim(left=0.2,right=0.8)
-        sns.despine(top=True,right=True)
-        plt.tight_layout()
-        plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_true_mean.pdf")
+            # Now plot true signal
+            plt.figure()
+            i = -1
+            signal = np.concatenate((np.linspace(peak,alphas[i]/4,int(np.floor(N/2))),np.linspace(alphas[i]/4,peak,int(np.ceil(N/2)))),axis=0)
+            lambdas = np.linspace(0,1,N)
+            plt.plot(lambdas,signal,alpha=1,color='k',linewidth=3, label="True Risk")
+            #plt.plot(lambdas,loss_table.mean(axis=0),alpha=1,color='k',linewidth=3, label="Empirical Risk")
+            plt.gca().axhline(alphas[i],xmin=min(lambdas),xmax=max(lambdas),linewidth=3,alpha=1,color='#888888',linestyle='dashed',label=r'$\alpha$')
+            plt.gca().set_xlabel(r'$\lambda$',fontsize=20)
+            plt.gca().set_ylabel('True Risk',fontsize=20)
+            plt.gca().set_yticks([0,0.25,0.5,0.75,1])
+            plt.gca().set_xticks([0,0.25,0.5,0.75,1])
+            xticklabels = plt.gca().get_xticklabels()
+            plt.setp(xticklabels, rotation=45, fontsize=15)
+            yticklabels = plt.gca().get_yticklabels()
+            plt.setp(yticklabels, fontsize=15)
+            #plt.xlim(left=0.2,right=0.8)
+            sns.despine(top=True,right=True)
+            plt.tight_layout()
+            plt.savefig(f"../outputs/concentration_results/{str(peak).replace('.','_')}_true_mean_n={str(n)}.pdf")

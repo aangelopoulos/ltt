@@ -1,0 +1,6 @@
+Bonferroni & 0.52& 0.54& 0.57\\
+Empirical 
+risk < $\alpha$ & 0.54& 0.57& 0.60\\
+Fixed
+Sequence & 0.53& 0.54& 0.57\\
+Uniform & 0.52& 0.54& 0.55\\
