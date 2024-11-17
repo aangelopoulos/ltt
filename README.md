@@ -3,8 +3,9 @@
     <a style="text-decoration:none !important;" href="https://arxiv.org/abs/2110.01052" alt="arXiv"> <img src="https://img.shields.io/badge/paper-arXiv-red" /> </a>
     <a style="text-decoration:none !important;" href="https://docs.conda.io/en/latest/miniconda.html" alt="package management"> <img src="https://img.shields.io/badge/conda-env-green" /> </a>
     <a style="text-decoration:none !important;" href="https://opensource.org/licenses/MIT" alt="License"> <img src="https://img.shields.io/badge/license-MIT-blue.svg" /> </a>
-    <a href="https://colab.research.google.com/github/aangelopoulos/ltt/blob/main/Detectron2%2BLTT.ipynb" target="_parent"><img src="https://camo.githubusercontent.com/52feade06f2fecbf006889a904d221e6a730c194/68747470733a2f2f636f6c61622e72657365617263682e676f6f676c652e636f6d2f6173736574732f636f6c61622d62616467652e737667" alt="Open In Colab" data-canonical-src="https://colab.research.google.com/assets/colab-badge.svg"></a>
-
+    <a target="_blank" href="https://colab.research.google.com/github/https://colab.research.google.com/github/aangelopoulos/ltt/blob/main/Detectron2%2BLTT.ipynb">
+      <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+    </a>
 </p>
 
 This repository will allow you to reproduce the experiments in the Learn then Test paper.
